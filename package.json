@@ -1,0 +1,13 @@
+{
+  "name": "blackboard-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "dev": "pnpm --filter @blackboard/frontend dev",
+    "build": "pnpm --filter @blackboard/frontend build",
+    "e2e": "pnpm --filter @blackboard/frontend e2e",
+    "lint": "pnpm --filter @blackboard/frontend lint",
+    "format": "pnpm --filter @blackboard/frontend format",
+    "test": "pnpm --filter @blackboard/frontend test"
+  }
+}

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Noto+Serif+SC:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .manuscript-shadow {
+            box-shadow: 0 4px 24px -2px rgba(26, 28, 27, 0.04);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#2c2c2c",
+                        "secondary-fixed-dim": "#d7c3b0",
+                        "on-primary-container": "#949393",
+                        "primary": "#171818",
+                        "on-primary-fixed": "#1b1c1c",
+                        "on-secondary-container": "#6f6050",
+                        "on-primary-fixed-variant": "#474747",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#081f1f",
+                        "outline-variant": "#c4c7c7",
+                        "on-secondary-fixed-variant": "#524436",
+                        "surface-container": "#efeeec",
+                        "surface-container-lowest": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#f1dcc8",
+                        "surface-container-high": "#e9e8e6",
+                        "secondary-fixed": "#f4dfcb",
+                        "on-secondary-fixed": "#241a0d",
+                        "on-background": "#1a1c1b",
+                        "surface-variant": "#e3e2e0",
+                        "background": "#faf9f7",
+                        "secondary": "#6b5c4c",
+                        "primary-fixed": "#e4e2e1",
+                        "on-tertiary-fixed-variant": "#354b4b",
+                        "on-tertiary": "#ffffff",
+                        "tertiary": "#051b1c",
+                        "on-secondary": "#ffffff",
+                        "outline": "#747878",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed-dim": "#b3cbcb",
+                        "surface-tint": "#5f5e5e",
+                        "surface": "#faf9f7",
+                        "surface-dim": "#dadad8",
+                        "tertiary-fixed": "#cfe7e7",
+                        "tertiary-container": "#1a3030",
+                        "on-surface-variant": "#444748",
+                        "inverse-primary": "#c8c6c5",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "surface-bright": "#faf9f7",
+                        "on-tertiary-container": "#819898",
+                        "surface-container-highest": "#e3e2e0",
+                        "on-primary": "#ffffff",
+                        "on-surface": "#1a1c1b",
+                        "inverse-on-surface": "#f1f1ef",
+                        "on-error-container": "#93000a",
+                        "inverse-surface": "#2f3130",
+                        "surface-container-low": "#f4f3f1",
+                        "success-highlight": "#e8f5e9",
+                        "success-text": "#2e7d32"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-md": "16px",
+                        "stack-lg": "32px",
+                        "annotation_rail": "300px",
+                        "margin-page": "64px",
+                        "manuscript_width": "900px",
+                        "gutter": "48px"
+                    },
+                    "fontFamily": {
+                        "ui-label-md": ["Inter"],
+                        "ui-annotation": ["Inter"],
+                        "manuscript-title": ["Noto Serif SC"],
+                        "manuscript-h1": ["Noto Serif SC"],
+                        "manuscript-body": ["Noto Serif SC"],
+                        "ui-label-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "ui-label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "ui-annotation": ["13px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "manuscript-title": ["42px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "manuscript-h1": ["28px", {"lineHeight": "1.4", "fontWeight": "500"}],
+                        "manuscript-body": ["18px", {"lineHeight": "1.8", "letterSpacing": "0.01em", "fontWeight": "400"}],
+                        "ui-label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface-container-low font-ui-label-md text-on-surface selection:bg-secondary-fixed">
+<!-- TopAppBar (Chrome) -->
+<header class="bg-background flex justify-between items-center w-full px-margin-page h-16 fixed top-0 z-50">
+<div class="flex items-center gap-stack-md overflow-hidden flex-1">
+<span class="font-manuscript-h1 text-[20px] text-primary truncate">Agent 黑板协作流程重设计...</span>
+</div>
+<div class="flex-1 flex justify-center">
+<div class="flex bg-surface-container-high p-0.5 rounded-full border border-outline-variant/10">
+<button class="px-5 py-1 text-ui-label-md bg-white rounded-full manuscript-shadow text-on-surface">Flow Review</button>
+<button class="px-5 py-1 text-ui-label-md text-on-surface-variant hover:text-on-surface transition-colors">PR Review</button>
+</div>
+</div>
+<div class="flex items-center gap-stack-md flex-1 justify-end">
+<div class="p-2 cursor-pointer active:opacity-70 hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex justify-center pb-48 px-margin-page pt-40">
+<!-- Manuscript Area -->
+<article class="w-full max-w-[900px] bg-white manuscript-shadow p-24 md:p-32 min-h-screen">
+<header class="mb-24">
+<h1 class="font-manuscript-title text-manuscript-title text-on-surface mb-8">关于黑板模式下的 Agent 协同流程优化</h1>
+<div class="flex items-center gap-4 text-outline font-ui-label-md">
+<span>版本 2.4.0</span>
+<span>•</span>
+<span>最后编辑于 14:20</span>
+</div>
+</header>
+<section class="font-manuscript-body text-manuscript-body text-on-surface-variant space-y-12">
+<p>
+                    在当今的复杂分布式系统中，<span class="bg-success-highlight text-success-text px-1">多 Agent 协同</span> 已经成为了解决非确定性任务的核心范式。传统的指令式流转往往难以应对动态变化的环境需求。因此，我们提出对现有的黑板模式（Blackboard Pattern）进行重构，以增强系统在处理长上下文任务时的灵活性。
+                </p>
+<p>
+                    黑板模式的核心在于一个共享的知识库。当前的实现中，<span class="line-through text-outline">Agent 之间的通信是同步的</span><span class="bg-success-highlight text-success-text px-1">我们引入了异步事件总线机制，允许 Agent 在不阻塞主流程的情况下更新黑板状态</span>。这种设计显著降低了系统的耦合度。
+                </p>
+<p>
+                    为了进一步优化这一流程，我们需要重新定义“知识贡献者”的角色。在旧版本中，<span class="line-through text-outline">只有被显式调用的 Agent 才能访问黑板</span>，这导致了严重的效率瓶颈。现在的设计中，<span class="bg-success-highlight text-success-text px-1">系统会自动评估每一个活跃 Agent 的领域专家度</span>，从而决定其是否参与当前的解题周期。
+                </p>
+<p>
+                    此外，关于状态同步的冲突解决，我们借鉴了 CRDT（无冲突复制数据类型）的思路。当多个 Agent 尝试同时修改同一黑板分片时，系统将不再抛出锁争用错误，而是通过语义合并策略自动达成一致性。这种改进对于需要<span class="bg-success-highlight text-success-text px-1">极高性能实时反馈</span>的场景至关重要。
+                </p>
+<p>
+                    总之，通过对黑板模式的异步化、专家化改造，Manuscript 系统能够承载更为复杂的逻辑编排任务。我们相信，这种“宁静且高效”的架构调整将为后续的生成式任务流奠定坚实的基础。
+                </p>
+</section>
+<footer class="mt-24 pt-12 border-t border-outline-variant/30 flex flex-col items-center gap-6">
+<p class="font-ui-label-md text-outline italic underline-offset-4 decoration-outline/20">请检视以上修订建议并选择操作</p>
+<div class="flex items-center gap-12">
+<button class="group flex items-center gap-2 text-ui-label-lg text-on-surface-variant hover:text-success-text transition-all">
+<span class="material-symbols-outlined text-[20px] font-light">done_all</span>
+<span class="border-b border-transparent group-hover:border-success-text/30">全部接受修订</span>
+</button>
+<div class="w-px h-4 bg-outline-variant/30"></div>
+<button class="group flex items-center gap-2 text-ui-label-lg text-on-surface-variant hover:text-error transition-all">
+<span class="material-symbols-outlined text-[20px] font-light">close</span>
+<span class="border-b border-transparent group-hover:border-error/30">全部拒绝</span>
+</button>
+</div>
+</footer>
+</article>
+</main>
+<!-- Background Decoration -->
+<div class="fixed inset-0 pointer-events-none -z-10 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] opacity-20"></div>
+</body></html>

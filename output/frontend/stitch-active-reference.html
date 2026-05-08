@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Agent 黑板协作流程重设计</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#e4e2e1",
+                        "tertiary-fixed-dim": "#b3cbcb",
+                        "on-error": "#ffffff",
+                        "tertiary-container": "#1a3030",
+                        "on-primary-fixed-variant": "#474747",
+                        "secondary-container": "#f1dcc8",
+                        "on-tertiary-fixed-variant": "#354b4b",
+                        "on-primary-fixed": "#1b1c1c",
+                        "surface-variant": "#e3e2e0",
+                        "inverse-primary": "#c8c6c5",
+                        "surface-container-low": "#f4f3f1",
+                        "secondary": "#6b5c4c",
+                        "on-primary": "#ffffff",
+                        "outline-variant": "#c4c7c7",
+                        "primary-fixed-dim": "#c8c6c5",
+                        "error": "#ba1a1a",
+                        "surface-container": "#efeeec",
+                        "surface": "#faf9f7",
+                        "inverse-on-surface": "#f1f1ef",
+                        "error-container": "#ffdad6",
+                        "surface-container-highest": "#e3e2e0",
+                        "surface-bright": "#faf9f7",
+                        "on-tertiary-container": "#819898",
+                        "outline": "#747878",
+                        "on-secondary-fixed-variant": "#524436",
+                        "secondary-fixed-dim": "#d7c3b0",
+                        "on-background": "#1a1c1b",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#051b1c",
+                        "secondary-fixed": "#f4dfcb",
+                        "background": "#faf9f7",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#e9e8e6",
+                        "surface-tint": "#5f5e5e",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#6f6050",
+                        "inverse-surface": "#2f3130",
+                        "on-surface-variant": "#444748",
+                        "tertiary-fixed": "#cfe7e7",
+                        "on-primary-container": "#949393",
+                        "on-secondary-fixed": "#241a0d",
+                        "on-tertiary-fixed": "#081f1f",
+                        "primary": "#171818",
+                        "on-secondary": "#ffffff",
+                        "on-surface": "#1a1c1b",
+                        "primary-container": "#2c2c2c",
+                        "surface-dim": "#dadad8"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin-page": "64px",
+                        "annotation_rail": "300px",
+                        "gutter": "48px",
+                        "stack-lg": "32px",
+                        "manuscript_width": "720px",
+                        "stack-sm": "8px",
+                        "stack-md": "16px"
+                    },
+                    "fontFamily": {
+                        "manuscript-h1": ["Noto Serif SC"],
+                        "manuscript-body": ["Noto Serif SC"],
+                        "ui-annotation": ["Inter"],
+                        "manuscript-title": ["Noto Serif SC"],
+                        "ui-label-md": ["Inter"],
+                        "ui-label-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "manuscript-h1": ["28px", { "lineHeight": "1.4", "fontWeight": "500" }],
+                        "manuscript-body": ["18px", { "lineHeight": "1.8", "letterSpacing": "0.01em", "fontWeight": "400" }],
+                        "ui-annotation": ["13px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "manuscript-title": ["42px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "ui-label-md": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "ui-label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #faf9f7; }
+    </style>
+</head>
+<body class="font-manuscript-body text-manuscript-body text-on-surface antialiased bg-background selection:bg-secondary-fixed selection:text-on-secondary-fixed">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface/80 dark:bg-surface-container/80 backdrop-blur-xl shadow-sm dark:shadow-none text-primary dark:text-primary-fixed">
+<div class="flex items-center gap-4">
+<h1 class="font-manuscript-h1 text-manuscript-h1 tracking-tight text-primary truncate max-w-xs sm:max-w-md">Agent 黑板协作流程重设计…</h1>
+</div>
+<div class="absolute left-1/2 -translate-x-1/2">
+<span class="font-ui-label-md text-ui-label-md px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant">v1.2 · 协作中</span>
+</div>
+<div class="flex items-center gap-4">
+<button class="font-ui-label-lg text-ui-label-lg border border-secondary text-secondary px-4 py-2 rounded hover:bg-secondary hover:text-on-secondary transition-colors duration-200">Proceed</button>
+<button class="text-on-surface-variant hover:bg-primary-fixed/10 transition-colors duration-200 p-2 rounded-full cursor-pointer active:opacity-70 flex items-center justify-center">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="pt-margin-page pb-margin-page flex justify-center w-full px-4 sm:px-8 min-h-screen relative mt-16">
+<!-- Manuscript Area -->
+<article class="w-full max-w-[1080px] bg-surface-container-lowest shadow-[0_4px_24px_rgba(0,0,0,0.04)] px-16 sm:px-24 py-24 relative min-h-[800px]">
+<h1 class="font-manuscript-title text-manuscript-title mb-12 text-primary">Agent 黑板协作流程重设计</h1>
+<p class="mb-6 text-on-surface">随着多智能体（Multi-Agent）协作模式的普及，传统的线性审批流已经无法满足动态交互的需求。本设计旨在重构“黑板模式”（Blackboard Pattern）下的用户界面，使其更贴合现代知识工作者的心智模型。</p>
+<h2 class="font-manuscript-h1 text-manuscript-h1 mt-10 mb-6 text-primary">核心问题</h2>
+<p class="mb-6 text-on-surface">在现有的协作环境中，人类用户与Agent之间的状态同步存在明显延迟。特别是当多个Agent同时对同一内容块进行操作时，<span class="bg-secondary-fixed/40 px-1 rounded relative group">界面的反馈机制常常导致认知过载</span>。</p>
+<blockquote class="border-l-4 border-outline-variant pl-4 italic text-on-surface-variant mb-6 relative">
+                “我们需要的是一个‘安静的编辑器’，它能在后台默默处理冲突，只在关键决策点将控制权交还给用户。”
+            </blockquote>
+<h2 class="font-manuscript-h1 text-manuscript-h1 mt-10 mb-6 text-primary">设计原则</h2>
+<ul class="list-disc pl-6 mb-6 text-on-surface space-y-2">
+<li><strong>隐性跟随 (Implicit Following):</strong> Agent的状态更新应作为环境光存在，而非强打断。</li>
+<li class="relative"><span class="bg-primary/5 px-1 rounded border-b border-dashed border-outline-variant">显性修改 (Explicit Modification):</span> 只有当Agent确信其修改能提升文本价值时，才发起正式的修改提案。</li>
+<li><strong>空间叙事 (Spatial Narrative):</strong> 利用右侧边缘区域作为协作的元数据（Metadata）通道。</li>
+</ul>
+<p class="mb-6 text-on-surface">在接下来的迭代中，我们将重点关注上下文感知的标注系统。这要求系统能够精准判断当前的编辑意图，并适时隐藏无关信息。</p>
+<!-- Collaboration Spine System -->
+<aside class="absolute top-0 right-[-32px] w-[1px] h-full bg-outline-variant/30 z-40 hidden sm:block">
+<!-- Node: New (Aligned with highlighted text "界面的反馈机制...") -->
+<div class="absolute top-[345px] left-1/2 -translate-x-1/2 w-[14px] h-[14px] rounded-full border-[1.5px] border-outline-variant/60 bg-surface-container-lowest shadow-sm flex items-center justify-center" title="New">
+</div>
+<!-- Node: Processing (Aligned with blockquote) -->
+<div class="absolute top-[440px] left-1/2 -translate-x-1/2 w-[18px] h-[18px] rounded-full border border-secondary flex items-center justify-center bg-surface-container-lowest shadow-sm" title="Processing">
+<div class="w-[5px] h-[5px] rounded-full bg-secondary animate-pulse"></div>
+<div class="absolute inset-0 rounded-full border border-secondary/30 border-t-transparent animate-spin" style="animation-duration: 3s;"></div>
+</div>
+<!-- Node: Processed (Aligned with list item "显性修改") -->
+<div class="absolute top-[590px] left-1/2 -translate-x-1/2 w-[7px] h-[7px] rounded-full bg-outline shadow-sm" title="Processed"></div>
+</aside>
+</article>
+</main>
+</body></html>

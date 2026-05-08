@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PR Review - Manuscript Draft</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Noto+Serif+SC:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-variant": "#e3e2e0",
+                      "on-tertiary-container": "#819898",
+                      "surface": "#faf9f7",
+                      "on-surface-variant": "#444748",
+                      "on-surface": "#1a1c1b",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed-variant": "#474747",
+                      "on-primary": "#ffffff",
+                      "outline": "#747878",
+                      "secondary": "#6b5c4c",
+                      "inverse-primary": "#c8c6c5",
+                      "on-tertiary-fixed-variant": "#354b4b",
+                      "surface-dim": "#dadad8",
+                      "on-secondary-container": "#6f6050",
+                      "primary-container": "#2c2c2c",
+                      "outline-variant": "#c4c7c7",
+                      "secondary-container": "#f1dcc8",
+                      "surface-tint": "#5f5e5e",
+                      "surface-bright": "#faf9f7",
+                      "secondary-fixed-dim": "#d7c3b0",
+                      "error": "#ba1a1a",
+                      "on-tertiary-fixed": "#081f1f",
+                      "surface-container": "#efeeec",
+                      "primary": "#171818",
+                      "tertiary-container": "#1a3030",
+                      "primary-fixed-dim": "#c8c6c5",
+                      "inverse-surface": "#2f3130",
+                      "surface-container-high": "#e9e8e6",
+                      "primary-fixed": "#e4e2e1",
+                      "tertiary": "#051b1c",
+                      "error-container": "#ffdad6",
+                      "on-secondary-fixed": "#241a0d",
+                      "inverse-on-surface": "#f1f1ef",
+                      "tertiary-fixed": "#cfe7e7",
+                      "background": "#faf9f7",
+                      "on-error-container": "#93000a",
+                      "on-error": "#ffffff",
+                      "on-tertiary": "#ffffff",
+                      "on-primary-container": "#949393",
+                      "secondary-fixed": "#f4dfcb",
+                      "on-primary-fixed": "#1b1c1c",
+                      "tertiary-fixed-dim": "#b3cbcb",
+                      "surface-container-low": "#f4f3f1",
+                      "on-secondary-fixed-variant": "#524436",
+                      "on-background": "#1a1c1b",
+                      "surface-container-highest": "#e3e2e0",
+                      "surface-container-lowest": "#ffffff",
+                      "diff-add-bg": "#e6f4ea",
+                      "diff-add-text": "#137333",
+                      "diff-del-bg": "#fce8e6",
+                      "diff-del-text": "#c5221f"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "stack-md": "16px",
+                      "gutter": "48px",
+                      "annotation_rail": "300px",
+                      "margin-page": "64px",
+                      "manuscript_width": "720px",
+                      "stack-lg": "32px"
+              },
+              "fontFamily": {
+                      "manuscript-h1": [
+                              "Noto Serif SC"
+                      ],
+                      "manuscript-body": [
+                              "Noto Serif SC"
+                      ],
+                      "manuscript-title": [
+                              "Noto Serif SC"
+                      ],
+                      "ui-label-md": [
+                              "Inter"
+                      ],
+                      "ui-annotation": [
+                              "Inter"
+                      ],
+                      "ui-label-lg": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "manuscript-h1": [
+                              "28px",
+                              {
+                                      "lineHeight": "1.4",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "manuscript-body": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.8",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "manuscript-title": [
+                              "42px",
+                              {
+                                      "lineHeight": "1.2",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "ui-label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "ui-annotation": [
+                              "13px",
+                              {
+                                      "lineHeight": "1.6",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "ui-label-lg": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+</head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col antialiased selection:bg-secondary-container selection:text-on-secondary-container">
+<!-- TopAppBar -->
+<header class="bg-background flex justify-between items-center w-full px-margin-page h-16 fixed top-0 left-0 right-0 z-50">
+<!-- Left: Truncated Title -->
+<div class="flex-1 min-w-0 pr-4">
+<h1 class="font-manuscript-h1 text-manuscript-h1 text-primary truncate max-w-[300px]">Agent 黑板协作流程重设计...</h1>
+</div>
+<!-- Center: Segmented Control -->
+<div class="flex-none flex items-center bg-surface-container-highest p-1 rounded-full border border-outline-variant/30">
+<button class="px-6 py-1.5 rounded-full font-ui-label-md text-ui-label-md text-on-surface-variant hover:text-primary transition-colors">
+                Flow Review
+            </button>
+<button class="px-6 py-1.5 rounded-full bg-surface text-primary shadow-[0_1px_3px_rgba(0,0,0,0.05)] font-ui-label-md text-ui-label-md font-bold">
+                PR Review
+            </button>
+</div>
+<!-- Right: Actions -->
+<div class="flex-1 flex justify-end items-center gap-4">
+<button class="text-on-surface-variant hover:text-primary transition-colors p-2 rounded-full cursor-pointer active:opacity-70 flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow pt-32 pb-margin-page flex justify-center w-full">
+<!-- Manuscript Area -->
+<div class="w-manuscript_width relative">
+<!-- Dimmed Preceding Text -->
+<div class="font-manuscript-body text-manuscript-body text-on-surface-variant/40 mb-stack-lg transition-opacity duration-300">
+<p class="mb-4">在传统的协作模式中，信息往往在不同工具间穿梭，导致上下文断裂。设计一种无缝的黑板体验，旨在打破这种碎片化。我们认为，真正的效率不仅在于速度，更在于深度的沉浸。</p>
+<p class="mb-4">当前的流程存在明显的瓶颈。用户在反馈和修改之间来回切换，消耗了大量的心智负担。</p>
+</div>
+<!-- Focused Hunk (Revision Block) -->
+<div class="relative z-10 py-stack-md -mx-8 px-8 bg-surface rounded-xl shadow-[0_4px_24px_rgba(0,0,0,0.03),0_1px_2px_rgba(0,0,0,0.02)] border border-outline-variant/10">
+<!-- Hunk Metadata Indicator -->
+<div class="absolute -top-3 left-8 bg-surface-container-highest px-3 py-1 rounded-full border border-surface shadow-sm flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-ui-label-md text-ui-label-md text-on-surface-variant tracking-wider uppercase text-[10px]">第 2 / 6 处待处理</span>
+</div>
+<!-- Hunk Content -->
+<div class="font-manuscript-body text-manuscript-body text-on-surface mt-2">
+<p class="leading-[2] mb-6">
+                        因此，我们提出引入 <del class="bg-diff-del-bg text-diff-del-text px-1 mx-0.5 rounded-sm line-through decoration-diff-del-text/50">智能辅助模块</del> <ins class="bg-diff-add-bg text-diff-add-text px-1 mx-0.5 rounded-sm no-underline border-b border-diff-add-text/30">上下文感知型 Agent 代理</ins>。该机制能够实时监控讨论板上的意图，并 <del class="bg-diff-del-bg text-diff-del-text px-1 mx-0.5 rounded-sm line-through decoration-diff-del-text/50">自动生成总结</del> <ins class="bg-diff-add-bg text-diff-add-text px-1 mx-0.5 rounded-sm no-underline border-b border-diff-add-text/30">在空白处静默提炼关键节点</ins>，从而让作者专注于核心论点的推演。
+                    </p>
+</div>
+<!-- Inline Controls -->
+<div class="flex items-center gap-3 mt-stack-md pt-stack-sm border-t border-outline-variant/10">
+<button class="flex items-center gap-2 px-4 py-1.5 rounded border border-outline-variant/50 text-on-surface hover:bg-diff-add-bg/50 hover:text-diff-add-text hover:border-diff-add-text/30 transition-all font-ui-label-md text-ui-label-md">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 0;">check</span>
+                        接受
+                    </button>
+<button class="flex items-center gap-2 px-4 py-1.5 rounded border border-outline-variant/50 text-on-surface hover:bg-diff-del-bg/50 hover:text-diff-del-text hover:border-diff-del-text/30 transition-all font-ui-label-md text-ui-label-md">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 0;">close</span>
+                        拒绝
+                    </button>
+</div>
+</div>
+<!-- Dimmed Succeeding Text -->
+<div class="font-manuscript-body text-manuscript-body text-on-surface-variant/40 mt-stack-lg transition-opacity duration-300">
+<p class="mb-4">这种设计哲学强调“静默”，即工具应当在需要时出现，在不需要时隐形。界面的视觉噪音被降至最低，色彩主要用于传达状态而非装饰。</p>
+<p>最终的测试数据表明，处于沉浸模式下的修改意愿提高了34%，而上下文相关的错误率下降了显著的比例。</p>
+</div>
+</div>
+</main>
+</body></html>
