@@ -13,6 +13,9 @@ importers:
       '@blackboard/document-model':
         specifier: workspace:*
         version: link:../../packages/document-model
+      '@blackboard/review-model':
+        specifier: workspace:*
+        version: link:../../packages/review-model
       '@blackboard/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -41,6 +44,9 @@ importers:
       '@blackboard/document-model':
         specifier: workspace:*
         version: link:../../packages/document-model
+      '@blackboard/review-model':
+        specifier: workspace:*
+        version: link:../../packages/review-model
       '@blackboard/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -113,6 +119,15 @@ importers:
 
   packages/document-model:
     dependencies:
+      '@blackboard/schema':
+        specifier: workspace:*
+        version: link:../schema
+
+  packages/review-model:
+    dependencies:
+      '@blackboard/document-model':
+        specifier: workspace:*
+        version: link:../document-model
       '@blackboard/schema':
         specifier: workspace:*
         version: link:../schema
