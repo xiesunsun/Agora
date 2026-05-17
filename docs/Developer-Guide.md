@@ -59,7 +59,7 @@ apps/frontend/
 ### 关键实现约束
 
 - **业务真相**：backend 持有 WorkingSet.currentContent、Bullet、ReviewChangeSet、Version 等业务状态
-- **状态机**：5 个顶层状态（active/proceeding/reviewing/history_preview/closed）
+- **状态机**：4 个后端生命周期状态（active/proceeding/reviewing/closed）；history_preview 是前端本地 view mode
 - **自动结算**：当最后一个 pending change 消失时，backend 必须自动结算 review
 - **并发守卫**：使用 workingSetRevision 防止基于过期现场的操作
 - **版本生成**：只有至少存在一个 accepted change 时才生成新 Version
@@ -71,9 +71,9 @@ apps/backend/
   src/domain/  — session state machine、业务规则
   src/store/   — repository interface、persistence
   src/routes/  — 协议映射、输入校验、响应编码
-packages/shared/
-  src/schema/  — schema、enum、error code
-  src/domain/  — 稳定领域词汇、纯函数
+packages/schema/          — schema、enum、error code
+packages/document-model/  — Markdown 单元派生与文档编辑纯函数
+packages/review-model/    — ReviewChangeSet 结算纯函数
 ```
 
 ## 我是 Agent 开发者
@@ -123,6 +123,14 @@ corepack pnpm install
 
 # 运行测试
 corepack pnpm test
+corepack pnpm test:backend
+
+# 完整 MVP 自动化验证
+corepack pnpm run harness:check
+corepack pnpm run test:all
+corepack pnpm run typecheck:all
+corepack pnpm run build:all
+corepack pnpm e2e
 
 # 运行 harness 检查
 corepack pnpm run harness:report

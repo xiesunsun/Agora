@@ -25,11 +25,16 @@ For the current repository stage, MVP ready means:
 
 Run validation in this order:
 
-1. structure checks
-2. rendering tests
-3. interaction tests
-4. presentation evidence review
-5. runtime host validation
+```bash
+pnpm install
+pnpm run harness:check
+pnpm run test:all
+pnpm run typecheck:all
+pnpm run build:all
+pnpm e2e
+```
+
+Then collect manual presentation evidence and runtime host validation evidence.
 
 Do not start with runtime validation while earlier layers are already known broken.
 
@@ -39,30 +44,26 @@ Do not start with runtime validation while earlier layers are already known brok
 
 Record results for:
 
-* `npm run harness:report`
-* `npm run harness:check`
-* `npm run harness:arch`
-* `npm run harness:naming`
-* `npm run harness:boundary`
+* `pnpm run harness:report`
+* `pnpm run harness:check`
+* `pnpm run harness:arch`
+* `pnpm run harness:naming`
+* `pnpm run harness:boundary`
 
 ### 4.2 Rendering
 
 Record results for:
 
-* Markdown profile tests
-* `DocumentUnit` derivation tests
-* edit reparse tests
-* unit-local review change tests
+* `pnpm test`
+* `pnpm test:backend`
 
 ### 4.3 Interaction
 
 Record results for:
 
-* state machine tests
-* review settlement tests
-* history restore tests
-* close flow tests
-* main e2e manuscript loop tests
+* `pnpm test`
+* `pnpm test:backend`
+* `pnpm e2e`
 
 ### 4.4 Presentation
 
@@ -79,6 +80,17 @@ Record evidence for:
 * explicit human approval before a presentation-affecting checklist task is marked complete
 
 Use `docs/04-design/Visual-QA-Checklist.md` as the manual review companion.
+
+### 4.5 Runtime
+
+Record evidence for:
+
+* `pnpm --filter @blackboard/host-adapter test`
+* dispatcher tests
+* Codex host validation scenario results
+* any known remaining host/runtime assumptions
+
+Current known gap: a real Codex host validation run is not proven by automated tests. Mark this as `known-gap` until a human records an agent-in-the-loop validation pass against `docs/05-agent/Codex-Host-Validation-Contract.md`.
 
 ## 4.6 Prototype Comparison Protocol
 
@@ -103,15 +115,6 @@ When a new refactor overlaps previously completed tasks:
 * identify which completed task outputs are being relied on or touched
 * add regression checks or comparison notes for those outputs
 * only reopen an old task explicitly if the repository plan is intentionally changed to do so
-
-### 4.5 Runtime
-
-Record evidence for:
-
-* adapter tests
-* dispatcher tests
-* Codex host validation scenario results
-* any known remaining host/runtime assumptions
 
 ## 5. Blockers
 
