@@ -5,6 +5,9 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { EventEmitter } from "node:events";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // ─── Minimal HTTP mocks ───────────────────────────────────────────────────────
 
@@ -139,6 +142,69 @@ describe("/cli/sessions/:id/dispatch-events", () => {
     handleCliRequest(req, res);
     await new Promise((r) => setTimeout(r, 50));
     expect(res._status).toBe(409);
+  });
+
+  test("status transitions are appended to the dispatch jsonl mirror", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "blackboard-dispatch-log-test-"));
+    const previousHome = process.env.HOME;
+    process.env.HOME = homeDir;
+    vi.resetModules();
+
+    try {
+      const { handleCliRequest } = await import("../cliRoutes.js");
+      const { enqueueDispatchEvent } = await import("../sessionStore.js");
+
+      const sessionId = `dispatch-log-${Date.now()}`;
+      const eventId = "event-1";
+      enqueueDispatchEvent({
+        eventId,
+        sessionId,
+        eventType: "proceed.started",
+        message: "Proceed now",
+        occurredAt: new Date().toISOString(),
+        status: "pending",
+      });
+
+      const claimReq = makeReq("POST", `/cli/sessions/${sessionId}/dispatch-events/${eventId}/claim`);
+      const claimRes = makeRes();
+      handleCliRequest(claimReq, claimRes);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(claimRes._status).toBe(200);
+
+      const completeReq = makeReq("POST", `/cli/sessions/${sessionId}/dispatch-events/${eventId}/complete`);
+      const completeRes = makeRes();
+      handleCliRequest(completeReq, completeRes);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(completeRes._status).toBe(200);
+
+      const logFile = join(homeDir, ".blackboard", "events", `${sessionId}.jsonl`);
+      const entries = readFileSync(logFile, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+      expect(entries).toEqual([
+        expect.objectContaining({
+          type: "dispatch.status_changed",
+          eventId,
+          fromStatus: "pending",
+          toStatus: "delivering",
+        }),
+        expect.objectContaining({
+          type: "dispatch.status_changed",
+          eventId,
+          fromStatus: "delivering",
+          toStatus: "handled",
+        }),
+      ]);
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+      rmSync(homeDir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -162,6 +162,18 @@ Known gap:
 
 * Real Codex host validation was not manually run in this pass. Runtime host tests passed, but an agent-in-the-loop validation run still needs to be recorded before marking the runtime layer `manual-pass`.
 
+### 2026-05-17 Codex Host Validation Pass
+
+Runtime layer result: `agent-verified`.
+
+Observed evidence:
+
+* `host-adapter` used the real runtime host, not the stub host.
+* A Codex worker thread was spawned and persisted as `subagentThreadId`.
+* The same worker thread handled comment, edit, proceed, review-resolved, and close events.
+* The session reached `closed` with no active bullets or active review state.
+* Dispatch JSONL now records status transition entries such as `pending -> delivering -> handled` for new events.
+
 ## 9. Related Documents
 
 This runbook should be used with:

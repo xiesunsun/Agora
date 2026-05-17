@@ -1,4 +1,6 @@
 import type { DispatchEvent, DispatchEventStatus, HistoryVersionPayload, SessionSnapshot } from "./types.js";
+import { appendFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { documentUnitsFromMarkdown } from "./markdownDocument.js";
 
 const sessions = new Map<string, SessionSnapshot>();
@@ -147,6 +149,11 @@ export function saveHistoryVersion(sessionId: string, payload: HistoryVersionPay
 // ─── Dispatch queue ──────────────────────────────────────────────────────────
 
 const dispatchQueues = new Map<string, DispatchEvent[]>();
+const DISPATCH_EVENTS_DIR = join(
+  process.env.HOME ?? process.env.USERPROFILE ?? "~",
+  ".blackboard",
+  "events",
+);
 
 export function enqueueDispatchEvent(event: DispatchEvent): void {
   if (!dispatchQueues.has(event.sessionId)) dispatchQueues.set(event.sessionId, []);
@@ -185,12 +192,40 @@ export function transitionDispatchEventStatus(
     };
   }
 
+  const fromStatus = event.status;
   event.status = nextStatus;
   if (failureReason) {
     event.failureReason = failureReason;
   } else {
     delete event.failureReason;
   }
+  appendDispatchStatusChange(event, fromStatus, nextStatus);
 
   return { ok: true, event };
+}
+
+function appendDispatchStatusChange(
+  event: DispatchEvent,
+  fromStatus: DispatchEventStatus,
+  toStatus: DispatchEventStatus,
+): void {
+  try {
+    mkdirSync(DISPATCH_EVENTS_DIR, { recursive: true });
+    const file = join(DISPATCH_EVENTS_DIR, `${event.sessionId}.jsonl`);
+    appendFileSync(
+      file,
+      JSON.stringify({
+        type: "dispatch.status_changed",
+        eventId: event.eventId,
+        sessionId: event.sessionId,
+        eventType: event.eventType,
+        fromStatus,
+        toStatus,
+        failureReason: event.failureReason,
+        occurredAt: new Date().toISOString(),
+      }) + "\n",
+    );
+  } catch {
+    // Debug mirror only; queue state remains authoritative.
+  }
 }
