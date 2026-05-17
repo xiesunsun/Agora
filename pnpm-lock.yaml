@@ -10,6 +10,9 @@ importers:
 
   apps/backend:
     dependencies:
+      '@blackboard/document-model':
+        specifier: workspace:*
+        version: link:../../packages/document-model
       '@blackboard/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -35,6 +38,9 @@ importers:
 
   apps/frontend:
     dependencies:
+      '@blackboard/document-model':
+        specifier: workspace:*
+        version: link:../../packages/document-model
       '@blackboard/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -104,6 +110,12 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/document-model:
+    dependencies:
+      '@blackboard/schema':
+        specifier: workspace:*
+        version: link:../schema
 
   packages/schema: {}
 

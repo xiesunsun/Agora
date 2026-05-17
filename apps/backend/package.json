@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@blackboard/document-model": "workspace:*",
     "@blackboard/schema": "workspace:*",
     "diff": "^7.0.0"
   },
