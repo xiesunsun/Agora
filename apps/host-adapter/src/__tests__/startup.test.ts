@@ -8,13 +8,13 @@ import type { HostControls } from "../types.js";
 describe("bootstrapSession", () => {
   function withWorkspace<T>(fn: (workspaceRoot: string) => Promise<T>): Promise<T> {
     const workspaceRoot = mkdtempSync(path.join(tmpdir(), "blackboard-startup-test-"));
-    const previous = process.env.BLACKBOARD_WORKSPACE_ROOT;
-    process.env.BLACKBOARD_WORKSPACE_ROOT = workspaceRoot;
+    const previous = process.env.BLACKBOARD_WORKER_WORKSPACE;
+    process.env.BLACKBOARD_WORKER_WORKSPACE = workspaceRoot;
     return fn(workspaceRoot).finally(() => {
       if (previous === undefined) {
-        delete process.env.BLACKBOARD_WORKSPACE_ROOT;
+        delete process.env.BLACKBOARD_WORKER_WORKSPACE;
       } else {
-        process.env.BLACKBOARD_WORKSPACE_ROOT = previous;
+        process.env.BLACKBOARD_WORKER_WORKSPACE = previous;
       }
       rmSync(workspaceRoot, { recursive: true, force: true });
     });

@@ -1,6 +1,9 @@
 import { EventEmitter } from "node:events";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Writable, PassThrough } from "node:stream";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { CodexAppServerHost } from "../runtimeHost.js";
 
 class FakeAppServerProcess extends EventEmitter {
@@ -91,16 +94,34 @@ class FakeAppServerProcess extends EventEmitter {
 
 describe("CodexAppServerHost", () => {
   let fakeProcess: FakeAppServerProcess;
+  let tempDir: string;
+  let workerConfigPath: string;
 
   beforeEach(() => {
     fakeProcess = new FakeAppServerProcess();
+    tempDir = mkdtempSync(join(tmpdir(), "blackboard-runtime-host-test-"));
+    workerConfigPath = join(tempDir, "blackboard-worker.toml");
+    writeFileSync(
+      workerConfigPath,
+      [
+        'sandbox_mode = "workspace-write"',
+        'developer_instructions = """',
+        "You are a blackboard worker for tests.",
+        '"""',
+        "",
+      ].join("\n"),
+    );
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
   });
 
   test("spawnAgent starts a thread and waits for the startup turn", async () => {
     const host = new CodexAppServerHost({
       spawnProcess: () => fakeProcess,
       workspaceRoot: "/workspace",
-      workerConfigPath: "/home/peter/workspace/blackBoard/.codex/agents/blackboard-worker.toml",
+      workerConfigPath,
     });
 
     const { threadId } = await host.spawnAgent("start blackboard");
@@ -118,7 +139,7 @@ describe("CodexAppServerHost", () => {
     const host = new CodexAppServerHost({
       spawnProcess: () => fakeProcess,
       workspaceRoot: "/workspace",
-      workerConfigPath: "/home/peter/workspace/blackBoard/.codex/agents/blackboard-worker.toml",
+      workerConfigPath,
     });
 
     await host.sendInput("thr-existing", "process event");
