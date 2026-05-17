@@ -146,7 +146,23 @@ Each MVP readiness pass should explicitly mark:
 
 against the five layers in `docs/04-design/Acceptance-Matrix.md`.
 
-## 8. Related Documents
+## 8. Verification Notes
+
+### 2026-05-17 Automated Pass
+
+Automated gates passed:
+
+* `pnpm run harness:check`
+* `pnpm run test:all`
+* `pnpm run typecheck:all`
+* `pnpm run build:all`
+* `pnpm e2e`
+
+Known gap:
+
+* Real Codex host validation was not manually run in this pass. Runtime host tests passed, but an agent-in-the-loop validation run still needs to be recorded before marking the runtime layer `manual-pass`.
+
+## 9. Related Documents
 
 This runbook should be used with:
 
