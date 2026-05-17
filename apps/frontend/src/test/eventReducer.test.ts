@@ -164,6 +164,33 @@ describe("event reducer", () => {
       twice.versionHistory.filter((version) => version.versionId === "v4"),
     ).toHaveLength(1);
   });
+
+  it("replaces local snapshot from working_set.rebased when payload is complete", () => {
+    const nextSnapshot = {
+      ...activeSnapshot,
+      currentContent: "# Restored\n\nContent.",
+      workingSetRevision: activeSnapshot.workingSetRevision + 1,
+      activeBullets: [],
+    };
+
+    const next = reduceSessionEvent(
+      activeSnapshot,
+      event("working_set.rebased", nextSnapshot),
+    );
+
+    expect(next.currentContent).toBe("# Restored\n\nContent.");
+    expect(next.workingSetRevision).toBe(activeSnapshot.workingSetRevision + 1);
+    expect(next.activeBullets).toHaveLength(0);
+  });
+
+  it("ignores malformed working_set.rebased payloads and waits for session.snapshot", () => {
+    const next = reduceSessionEvent(
+      activeSnapshot,
+      event("working_set.rebased", {}),
+    );
+
+    expect(next).toBe(activeSnapshot);
+  });
 });
 
 // ─── Bug fix regression tests ─────────────────────────────────────────────────

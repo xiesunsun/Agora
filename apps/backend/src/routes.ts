@@ -244,7 +244,7 @@ function applyCommand(sessionId: string, command: CommandEnvelope): void {
       const version = getHistoryVersion(sessionId, versionId);
       if (!version) { broadcast(sessionId, "error.raised", { code: "NOT_FOUND", message: "Version not found", recoverable: true }); return; }
       const next = setSession(sessionId, restoreVersionSnapshot(snapshot, versionId, version.content));
-      broadcastAndDispatch(sessionId, "working_set.rebased", {});
+      broadcastAndDispatch(sessionId, "working_set.rebased", next);
       broadcast(sessionId, "session.snapshot", next);
       break;
     }

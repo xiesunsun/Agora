@@ -93,7 +93,9 @@ export function reduceSessionEvent(
       };
     }
     case "working_set.rebased":
-      return event.payload as SessionSnapshot;
+      return isSessionSnapshot(event.payload)
+        ? event.payload
+        : snapshot;
     case "proceed.started":
       return {
         ...snapshot,
@@ -179,4 +181,21 @@ export function reduceSessionEvent(
     default:
       return snapshot;
   }
+}
+
+function isSessionSnapshot(payload: unknown): payload is SessionSnapshot {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Partial<SessionSnapshot>;
+  return (
+    typeof candidate.sessionId === "string" &&
+    typeof candidate.sessionStatus === "string" &&
+    typeof candidate.currentContent === "string" &&
+    typeof candidate.workingSetRevision === "number" &&
+    Array.isArray(candidate.documentUnits) &&
+    Array.isArray(candidate.activeBullets) &&
+    Array.isArray(candidate.versionHistory)
+  );
 }

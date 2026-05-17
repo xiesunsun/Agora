@@ -39,6 +39,22 @@ function makeRes(): ServerResponse & { _status: number; _body: string } {
   return res;
 }
 
+function makeSseRes(): ServerResponse & { _chunks: string[] } {
+  const res = new EventEmitter() as ServerResponse & { _chunks: string[] };
+  res._chunks = [];
+  res.writeHead = () => res;
+  res.write = (chunk: unknown) => {
+    res._chunks.push(String(chunk));
+    return true;
+  };
+  res.end = (body?: unknown) => {
+    if (body !== undefined) res._chunks.push(String(body));
+    return res;
+  };
+  res.getHeader = () => undefined;
+  return res;
+}
+
 function makeCommand(
   sessionId: string,
   type: string,
@@ -193,5 +209,46 @@ describe("session command routes", () => {
 
     after = getSession(sessionId);
     expect(after?.proceeding?.stage).toBe("synthesizing_changes");
+  });
+
+  test("restore version broadcasts working_set.rebased with a full snapshot", async () => {
+    const { handleRequest } = await import("../routes.js");
+    const { createSession, saveHistoryVersion } = await import("../sessionStore.js");
+
+    const sessionId = `routes-restore-${Date.now()}`;
+    const snap = createSession(sessionId, "Test", "# Title\n\nCurrent.");
+    saveHistoryVersion(sessionId, {
+      versionId: "v1",
+      versionNumber: 1,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      content: "# Title\n\nRestored.",
+    });
+
+    const eventsRes = makeSseRes();
+    handleRequest(makeReq("GET", `/api/sessions/${sessionId}/events`), eventsRes);
+
+    const req = makeReq(
+      "POST",
+      `/api/sessions/${sessionId}/commands`,
+      makeCommand(sessionId, "history.restore_version", {
+        versionId: "v1",
+        workingSetRevision: snap.workingSetRevision,
+      }),
+    );
+    const res = makeRes();
+    handleRequest(req, res);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const envelopes = eventsRes._chunks
+      .flatMap((chunk) => chunk.split("\n\n"))
+      .filter((chunk) => chunk.startsWith("data: "))
+      .map((chunk) => JSON.parse(chunk.slice("data: ".length)) as { type: string; payload: Record<string, unknown> });
+    const rebase = envelopes.find((envelope) => envelope.type === "working_set.rebased");
+
+    expect(rebase?.payload.sessionId).toBe(sessionId);
+    expect(rebase?.payload.currentContent).toBe("# Title\n\nRestored.");
+    expect(Array.isArray(rebase?.payload.documentUnits)).toBe(true);
+    expect(rebase?.payload.workingSetRevision).toBe(1);
   });
 });

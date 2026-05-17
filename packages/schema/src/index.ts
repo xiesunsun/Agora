@@ -2,7 +2,6 @@ export type SessionStatus =
   | "active"
   | "proceeding"
   | "reviewing"
-  | "history_preview"
   | "closed";
 
 export type DocumentUnitType =
