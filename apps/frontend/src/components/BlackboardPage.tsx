@@ -63,8 +63,16 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
     unitId: string,
     anchorText: string,
     content: string,
+    anchorStartOffset?: number,
+    anchorEndOffset?: number,
   ) {
-    session.createDocumentUnitComment(unitId, anchorText, content);
+    session.createDocumentUnitComment(
+      unitId,
+      anchorText,
+      content,
+      anchorStartOffset,
+      anchorEndOffset,
+    );
   }
 
   return (

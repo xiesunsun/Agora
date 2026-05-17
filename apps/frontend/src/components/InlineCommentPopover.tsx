@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 export interface SelectionDraft {
   anchorText: string;
+  anchorStartOffset?: number;
+  anchorEndOffset?: number;
   unitId: string;
   x: number;
   y: number;
@@ -10,7 +12,13 @@ export interface SelectionDraft {
 interface InlineCommentPopoverProps {
   selectionDraft: SelectionDraft;
   onCancel: () => void;
-  onSubmit: (unitId: string, anchorText: string, content: string) => void;
+  onSubmit: (
+    unitId: string,
+    anchorText: string,
+    content: string,
+    anchorStartOffset?: number,
+    anchorEndOffset?: number,
+  ) => void;
 }
 
 export function InlineCommentPopover({
@@ -32,7 +40,13 @@ export function InlineCommentPopover({
       return;
     }
 
-    onSubmit(selectionDraft.unitId, selectionDraft.anchorText, trimmedContent);
+    onSubmit(
+      selectionDraft.unitId,
+      selectionDraft.anchorText,
+      trimmedContent,
+      selectionDraft.anchorStartOffset,
+      selectionDraft.anchorEndOffset,
+    );
     setContent("");
   }
 

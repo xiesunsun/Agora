@@ -95,6 +95,18 @@ describe("createDocumentUnitComment", () => {
     expect(next.currentContent).toBe(snap.currentContent);
   });
 
+  test("preserves precise anchor offsets", () => {
+    const snap = makeSnapshot();
+    const unit = snap.documentUnits[1];
+    const next = createDocumentUnitComment(snap, unit.unitId, "第一段", "批注", 0, 3);
+    const bullet = next.activeBullets[0];
+    expect(bullet.type).toBe("comment");
+    if (bullet.type === "comment") {
+      expect(bullet.anchorStartOffset).toBe(0);
+      expect(bullet.anchorEndOffset).toBe(3);
+    }
+  });
+
   test("no-op for empty content", () => {
     const snap = makeSnapshot();
     const unit = snap.documentUnits[1];

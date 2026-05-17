@@ -64,6 +64,8 @@ export function createDocumentUnitComment(
   unitId: string,
   anchorText: string,
   content: string,
+  anchorStartOffset?: number,
+  anchorEndOffset?: number,
 ): SessionSnapshot {
   const target = snapshot.documentUnits.find((u) => u.unitId === unitId);
   if (!target || !anchorText.trim() || !content.trim()) return snapshot;
@@ -77,6 +79,8 @@ export function createDocumentUnitComment(
     queueOrder: snapshot.activeBullets.length,
     createdAt: new Date().toISOString(),
     anchorTextSnapshot: anchorText.trim().slice(0, 500),
+    anchorStartOffset,
+    anchorEndOffset,
     content: content.trim(),
   };
 

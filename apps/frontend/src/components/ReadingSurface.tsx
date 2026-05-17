@@ -19,6 +19,8 @@ interface ReadingSurfaceProps {
     unitId: string,
     anchorText: string,
     content: string,
+    anchorStartOffset?: number,
+    anchorEndOffset?: number,
   ) => void;
   onCommitEdit: (unitId: string, text: string) => void;
   onStartEdit: (unitId: string) => void;
@@ -158,17 +160,35 @@ export function ReadingSurface({
         range.startContainer.nodeType === Node.ELEMENT_NODE
           ? (range.startContainer as Element)
           : range.startContainer.parentElement;
-      const unitElement = startNode?.closest<HTMLElement>("[data-unit-id]");
+      const startUnit = startNode?.closest<HTMLElement>("[data-unit-id]");
+      const endNode =
+        range.endContainer.nodeType === Node.ELEMENT_NODE
+          ? (range.endContainer as Element)
+          : range.endContainer.parentElement;
+      const endUnit = endNode?.closest<HTMLElement>("[data-unit-id]");
 
-      if (!unitElement || !unitElement.closest(".document-view")) {
+      if (
+        !startUnit ||
+        !endUnit ||
+        startUnit.dataset.unitId !== endUnit.dataset.unitId ||
+        !startUnit.closest(".document-view")
+      ) {
         return;
       }
 
-      const unitId = unitElement.dataset.unitId;
+      const unitId = startUnit.dataset.unitId;
 
       if (!unitId) {
         return;
       }
+
+      const unit = documentUnits.find((candidate) => candidate.unitId === unitId);
+      const unitText = unit && "text" in unit ? unit.text : unit?.markdown;
+      const anchorStartOffset = unitText?.indexOf(anchorText) ?? -1;
+      const anchorEndOffset =
+        anchorStartOffset >= 0
+          ? anchorStartOffset + anchorText.length
+          : undefined;
 
       const rangeRect = range.getBoundingClientRect();
       const surfaceRect = document
@@ -181,6 +201,9 @@ export function ReadingSurface({
 
       setSelectionDraft({
         anchorText,
+        anchorStartOffset:
+          anchorStartOffset >= 0 ? anchorStartOffset : undefined,
+        anchorEndOffset,
         unitId,
         x: rangeRect.left - surfaceRect.left + rangeRect.width / 2,
         y: rangeRect.bottom - surfaceRect.top + 12,
@@ -239,8 +262,14 @@ export function ReadingSurface({
         <InlineCommentPopover
           selectionDraft={selectionDraft}
           onCancel={() => setSelectionDraft(null)}
-          onSubmit={(unitId, anchorText, content) => {
-            onCreateComment(unitId, anchorText, content);
+          onSubmit={(unitId, anchorText, content, anchorStartOffset, anchorEndOffset) => {
+            onCreateComment(
+              unitId,
+              anchorText,
+              content,
+              anchorStartOffset,
+              anchorEndOffset,
+            );
             window.getSelection()?.removeAllRanges();
             setSelectionDraft(null);
           }}

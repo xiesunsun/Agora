@@ -173,6 +173,8 @@ export function createDocumentUnitComment(
   unitId: string,
   anchorText: string,
   content: string,
+  anchorStartOffset?: number,
+  anchorEndOffset?: number,
 ): SessionSnapshot {
   const targetUnit = snapshot.documentUnits.find(
     (unit) => unit.unitId === unitId,
@@ -193,6 +195,8 @@ export function createDocumentUnitComment(
     queueOrder: snapshot.activeBullets.length,
     createdAt: new Date().toISOString(),
     anchorTextSnapshot: trimmedAnchorText.slice(0, 500),
+    anchorStartOffset,
+    anchorEndOffset,
     content: trimmedContent,
   }, snapshot.documentUnits, snapshot.activeBullets);
 

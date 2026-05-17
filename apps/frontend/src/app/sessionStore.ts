@@ -83,6 +83,8 @@ type SessionAction =
   | {
       type: "fixture.document_unit.comment.create";
       anchorText: string;
+      anchorStartOffset?: number;
+      anchorEndOffset?: number;
       content: string;
       unitId: string;
     };
@@ -254,6 +256,8 @@ function sessionReducer(
           action.unitId,
           action.anchorText,
           action.content,
+          action.anchorStartOffset,
+          action.anchorEndOffset,
         ),
       };
     default:
@@ -473,6 +477,8 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
         unitId: string,
         anchorText: string,
         content: string,
+        anchorStartOffset?: number,
+        anchorEndOffset?: number,
       ) =>
         runCommand(
           () =>
@@ -481,11 +487,15 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
               unitId,
               anchorText,
               content,
+              anchorStartOffset,
+              anchorEndOffset,
             ),
           {
             type: "fixture.document_unit.comment.create",
             unitId,
             anchorText,
+            anchorStartOffset,
+            anchorEndOffset,
             content,
           },
         ),
