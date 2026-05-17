@@ -40,6 +40,59 @@ async function sendCommand(
   expect(response.ok()).toBeTruthy();
 }
 
+async function markFirstProcessingBulletReady(
+  request: APIRequestContext,
+  sessionId: string,
+) {
+  let bulletId: string | null = null;
+
+  await expect
+    .poll(async () => {
+      const response = await request.get(
+        `${BACKEND_BASE}/api/sessions/${sessionId}/snapshot`,
+      );
+      const snapshot = await response.json();
+      const bullet = snapshot.activeBullets?.find(
+        (candidate: { bulletId: string; status: string }) =>
+          candidate.status === "processing",
+      );
+      bulletId = bullet?.bulletId ?? null;
+      return bulletId;
+    })
+    .not.toBeNull();
+
+  const response = await request.post(
+    `${BACKEND_BASE}/cli/sessions/${sessionId}/bullets/${encodeURIComponent(bulletId!)}/ready`,
+  );
+
+  expect(response.ok()).toBeTruthy();
+}
+
+async function submitReviewCandidateWhenReady(
+  request: APIRequestContext,
+  sessionId: string,
+  candidateContent: string,
+) {
+  await expect
+    .poll(async () => {
+      const response = await request.get(
+        `${BACKEND_BASE}/api/sessions/${sessionId}/snapshot`,
+      );
+      const snapshot = await response.json();
+      return snapshot.proceeding?.stage ?? snapshot.sessionStatus;
+    })
+    .toBe("synthesizing_changes");
+
+  const response = await request.post(
+    `${BACKEND_BASE}/cli/sessions/${sessionId}/review-candidate`,
+    {
+      data: { candidateContent },
+    },
+  );
+
+  expect(response.ok()).toBeTruthy();
+}
+
 test("drives proceed and review through HTTP commands and SSE state", async ({
   page,
   request,
@@ -54,6 +107,7 @@ test("drives proceed and review through HTTP commands and SSE state", async ({
     content: "Please expand this.",
     anchorTextSnapshot: "Hello",
   });
+  await markFirstProcessingBulletReady(request, sessionId);
 
   await page.goto(`/?sessionId=${sessionId}`);
 
@@ -76,6 +130,12 @@ test("drives proceed and review through HTTP commands and SSE state", async ({
     .toBeVisible();
   await expect(page.getByRole("heading", { name: "正在统合本轮修改" }))
     .toBeVisible();
+
+  await submitReviewCandidateWhenReady(
+    request,
+    sessionId,
+    "# Protocol Session\n\nHello expanded session.",
+  );
 
   await expect(page.locator('.blackboard-page[data-status="reviewing_flow"]'))
     .toBeVisible();
@@ -161,6 +221,35 @@ test("opens bullet notes from rail state icons with one click", async ({
       ),
     ).toBeVisible();
   }
+});
+
+test("confirms close when committed edits are still pending", async ({
+  page,
+  request,
+}) => {
+  const sessionId = await createSession(
+    request,
+    "Close Guard Session",
+    "# Close Guard Session\n\nDraft paragraph.",
+  );
+
+  await page.goto(`/?sessionId=${sessionId}`);
+  await expect(page.locator('.blackboard-page[data-status="active"]'))
+    .toBeVisible();
+
+  await page.getByText("Draft paragraph.").dblclick();
+  await page.locator(".document-unit-editor textarea").fill("Edited draft paragraph.");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Edited draft paragraph.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByLabel("Close session confirmation")).toBeVisible();
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByLabel("Close session confirmation")).toHaveCount(0);
+  await expect(page.locator('.blackboard-page[data-status="active"]'))
+    .toBeVisible();
+  await expect(page.getByText("Edited draft paragraph.")).toBeVisible();
 });
 
 test("attaches to a freshly created real session", async ({ page, request }) => {

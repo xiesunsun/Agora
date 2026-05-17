@@ -399,6 +399,75 @@ button:active {
   line-height: 1.7;
 }
 
+.close-confirmation-overlay {
+  position: fixed;
+  z-index: 35;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(246, 244, 239, 0.72);
+  backdrop-filter: blur(10px);
+  animation: overlayFadeIn 180ms ease both;
+}
+
+.close-confirmation {
+  width: min(360px, calc(100vw - 48px));
+  padding: 24px;
+  border: 1px solid rgba(43, 46, 49, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 22px 70px rgba(43, 46, 49, 0.14);
+  color: #26292c;
+  font-family: var(--control-font);
+}
+
+.close-confirmation h2 {
+  margin: 0 0 10px;
+  font-family: var(--display-font);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.close-confirmation p {
+  margin: 0 0 20px;
+  color: rgba(43, 46, 49, 0.62);
+  font-family: var(--body-font);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.close-confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.close-confirmation-actions button,
+.close-recovery-button {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(43, 46, 49, 0.18);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #2b2e31;
+  font: 600 12px / 1 var(--control-font);
+  cursor: pointer;
+}
+
+.close-confirmation-actions button:last-child {
+  border-color: rgba(43, 46, 49, 0.82);
+  background: #2b2e31;
+  color: #fffdf8;
+}
+
+.close-confirmation-actions button:hover,
+.close-confirmation-actions button:focus-visible,
+.close-recovery-button:hover,
+.close-recovery-button:focus-visible {
+  transform: translateY(-1px);
+}
+
 .proceeding-count {
   display: flex;
   align-items: baseline;

@@ -32,13 +32,34 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
     session.state.reviewMode,
   );
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null);
-  const [closingRequested, setClosingRequested] = useState(false);
+  const [closeState, setCloseState] = useState<
+    "idle" | "confirming" | "requested"
+  >("idle");
+  const [closeTimedOut, setCloseTimedOut] = useState(false);
+  const hasUnsavedWork =
+    bullets.length > 0 ||
+    (snapshot.currentVersionId !== undefined &&
+      snapshot.baseVersionId !== undefined &&
+      snapshot.currentVersionId !== snapshot.baseVersionId);
   const isInteractionLocked =
-    editingUnitId !== null || pageStatus !== "active" || closingRequested;
+    editingUnitId !== null || pageStatus !== "active" || closeState !== "idle";
 
   useEffect(() => {
-    if (pageStatus === "closed") setClosingRequested(false);
+    if (pageStatus === "closed") {
+      setCloseState("idle");
+      setCloseTimedOut(false);
+    }
   }, [pageStatus]);
+
+  useEffect(() => {
+    if (closeState !== "requested") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => setCloseTimedOut(true), 60_000);
+
+    return () => window.clearTimeout(timer);
+  }, [closeState]);
 
   useEffect(() => {
     if (
@@ -75,6 +96,25 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
     );
   }
 
+  function requestClose() {
+    setCloseState("requested");
+    setCloseTimedOut(false);
+    session.closeSession();
+  }
+
+  function handleClose() {
+    if (editingUnitId !== null) {
+      return;
+    }
+
+    if (hasUnsavedWork) {
+      setCloseState("confirming");
+      return;
+    }
+
+    requestClose();
+  }
+
   return (
     <main className="blackboard-page" data-status={pageStatus}>
       {pageStatus === "history_preview" ? (
@@ -102,7 +142,7 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
         <>
           <PageChrome
             isInteractionLocked={isInteractionLocked}
-            onClose={() => { setClosingRequested(true); session.closeSession(); }}
+            onClose={handleClose}
             onPreviewHistory={session.previewCurrentHistory}
             onProceed={session.proceedSession}
             snapshot={snapshot}
@@ -124,7 +164,26 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
           proceeding={snapshot.proceeding}
         />
       ) : null}
-      {closingRequested && pageStatus !== "closed" ? (
+      {closeState === "confirming" && pageStatus !== "closed" ? (
+        <section className="close-confirmation-overlay" aria-label="Close session confirmation">
+          <div className="close-confirmation">
+            <h2>关闭本次协作？</h2>
+            <p>当前还有未结算的批注、编辑或版本变化。关闭会请求 Agent 做收尾处理。</p>
+            <div className="close-confirmation-actions">
+              <button
+                type="button"
+                onClick={() => setCloseState("idle")}
+              >
+                Cancel
+              </button>
+              <button type="button" onClick={requestClose}>
+                Close session
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+      {closeState === "requested" && pageStatus !== "closed" ? (
         <section className="proceeding-overlay" aria-label="Closing session">
           <div className="proceeding-status">
             <div className="proceeding-orbit" aria-hidden="true">
@@ -136,7 +195,23 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
               <span className="orbit-core" />
             </div>
             <h2>正在关闭会话</h2>
-            <p>Agent 正在整理本次协作成果并完成收尾总结。</p>
+            <p>
+              {closeTimedOut
+                ? "关闭请求仍未完成。你可以返回继续协作，稍后再试。"
+                : "Agent 正在整理本次协作成果并完成收尾总结。"}
+            </p>
+            {closeTimedOut ? (
+              <button
+                className="close-recovery-button"
+                type="button"
+                onClick={() => {
+                  setCloseState("idle");
+                  setCloseTimedOut(false);
+                }}
+              >
+                Return to session
+              </button>
+            ) : null}
           </div>
         </section>
       ) : null}
