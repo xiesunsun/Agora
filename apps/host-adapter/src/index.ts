@@ -102,8 +102,11 @@ async function main(): Promise<{ readyFile?: string }> {
       const mod = await import(/* @vite-ignore */ modPath) as { runtimeHost: HostControls };
       host = mod.runtimeHost;
       console.log("[adapter] using runtime host");
-    } catch {
-      console.warn("[adapter] runtimeHost.js not found — falling back to stub host");
+    } catch (error) {
+      console.warn(
+        "[adapter] runtime host unavailable — falling back to stub host:",
+        error instanceof Error ? error.message : String(error),
+      );
       host = stubHost;
     }
   }

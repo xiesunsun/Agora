@@ -55,6 +55,10 @@ interface CodexAppServerHostOptions {
 }
 
 const DEFAULT_WORKER_CONFIG_PATHS = [
+  join(
+    process.env.BLACKBOARD_WORKSPACE_ROOT ?? process.cwd(),
+    ".codex/agents/blackboard-worker.toml",
+  ),
   fileURLToPath(new URL("../../../.codex/agents/blackboard-worker.toml", import.meta.url)),
   `${homedir()}/.codex/agents/blackboard-worker.toml`,
 ];
