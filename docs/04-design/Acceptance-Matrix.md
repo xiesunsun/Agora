@@ -25,11 +25,11 @@ Purpose:
 
 Expected evidence:
 
-* `npm run harness:report`
-* `npm run harness:check`
-* `npm run harness:arch`
-* `npm run harness:naming`
-* `npm run harness:boundary`
+* `pnpm run harness:report`
+* `pnpm run harness:check`
+* `pnpm run harness:arch`
+* `pnpm run harness:naming`
+* `pnpm run harness:boundary`
 
 ### 2.2 Rendering
 
