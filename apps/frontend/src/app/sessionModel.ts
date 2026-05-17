@@ -388,16 +388,20 @@ export function resolveAllReviewChangesWithSettlement(
     return resolveReviewIfSettled(snapshot);
   }
 
-  const nextDocumentState =
-    status === "accepted"
-      ? {
-          currentContent: changeSet.candidateContent,
-          documentUnits: documentUnitsFromMarkdown(changeSet.candidateContent),
-        }
-      : {
-          currentContent: snapshot.currentContent,
-          documentUnits: snapshot.documentUnits,
-        };
+  let nextDocumentState = {
+    currentContent: snapshot.currentContent,
+    documentUnits: snapshot.documentUnits,
+  };
+
+  if (status === "accepted") {
+    for (const change of pendingChanges) {
+      nextDocumentState = applyAcceptedChange(
+        nextDocumentState.currentContent,
+        nextDocumentState.documentUnits,
+        change,
+      );
+    }
+  }
   const changes = changeSet.changes.map((change) =>
     change.status === "pending" ? { ...change, status } : change,
   );

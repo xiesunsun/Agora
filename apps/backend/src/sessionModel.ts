@@ -183,15 +183,20 @@ export function resolveAllReviewChangesWithSettlement(
   const pending = changeSet.changes.filter((c) => c.status === "pending");
   if (pending.length === 0) return resolveReviewIfSettled(snapshot);
 
-  const nextDocumentState = status === "accepted"
-    ? {
-        currentContent: changeSet.candidateContent,
-        documentUnits: documentUnitsFromMarkdown(changeSet.candidateContent),
-      }
-    : {
-        currentContent: snapshot.currentContent,
-        documentUnits: snapshot.documentUnits,
-      };
+  let nextDocumentState = {
+    currentContent: snapshot.currentContent,
+    documentUnits: snapshot.documentUnits,
+  };
+
+  if (status === "accepted") {
+    for (const change of pending) {
+      nextDocumentState = applyAcceptedChange(
+        nextDocumentState.currentContent,
+        nextDocumentState.documentUnits,
+        change,
+      );
+    }
+  }
   const changes = changeSet.changes.map((c) => c.status === "pending" ? { ...c, status } : c);
 
   return resolveReviewIfSettled({
