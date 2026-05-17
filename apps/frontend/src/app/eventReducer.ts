@@ -3,14 +3,17 @@ import type {
   BulletStatus,
   EventEnvelope,
   ProceedingStage,
+  ReviewChangeStatusChangedPayload,
   ReviewChangeSet,
+  ReviewResolvedPayload,
   SessionSnapshot,
+  VersionCreatedPayload,
   VersionSummaryItem,
 } from "../types/blackboard";
 import {
   closeSession,
   completeProceeding,
-  resolveReviewChange,
+  decorateBullet,
   updateProceedingProgress,
   updateProceedingStage,
 } from "./sessionModel";
@@ -36,9 +39,15 @@ interface ProceedProgressUpdatedPayload {
   total: number;
 }
 
-interface ReviewChangeStatusChangedPayload {
-  changeId: string;
-  status: "accepted" | "rejected";
+function appendVersionSummary(
+  versions: VersionSummaryItem[],
+  version: VersionSummaryItem,
+): VersionSummaryItem[] {
+  if (versions.some((candidate) => candidate.versionId === version.versionId)) {
+    return versions;
+  }
+
+  return [...versions, version];
 }
 
 export function reduceSessionEvent(
@@ -62,7 +71,14 @@ export function reduceSessionEvent(
     case "bullet.created":
       return {
         ...snapshot,
-        activeBullets: [...snapshot.activeBullets, event.payload as Bullet],
+        activeBullets: [
+          ...snapshot.activeBullets,
+          decorateBullet(
+            event.payload as Bullet,
+            snapshot.documentUnits,
+            snapshot.activeBullets,
+          ),
+        ],
       };
     case "bullet.status_changed": {
       const payload = event.payload as BulletStatusChangedPayload;
@@ -101,19 +117,60 @@ export function reduceSessionEvent(
     case "review.change_status_changed": {
       const payload = event.payload as ReviewChangeStatusChangedPayload;
 
-      return resolveReviewChange(snapshot, payload.changeId, payload.status);
+      if (
+        !snapshot.activeReviewChangeSet ||
+        snapshot.activeReviewChangeSet.reviewChangeSetId !==
+          payload.reviewChangeSetId
+      ) {
+        return snapshot;
+      }
+
+      return {
+        ...snapshot,
+        activeReviewChangeSet: {
+          ...snapshot.activeReviewChangeSet,
+          changes: snapshot.activeReviewChangeSet.changes.map((change) =>
+            change.changeId === payload.changeId
+              ? { ...change, status: payload.toStatus }
+              : change,
+          ),
+        },
+      };
     }
-    case "review.resolved":
-      return "sessionStatus" in (event.payload as object)
-        ? (event.payload as SessionSnapshot)
-        : snapshot;
+    case "review.resolved": {
+      const payload = event.payload as ReviewResolvedPayload;
+
+      if (
+        !snapshot.activeReviewChangeSet ||
+        snapshot.activeReviewChangeSet.reviewChangeSetId !==
+          payload.reviewChangeSetId
+      ) {
+        return snapshot;
+      }
+
+      return {
+        ...snapshot,
+        sessionStatus: "active",
+        activeBullets: [],
+        activeReviewChangeSet: null,
+        proceeding: null,
+        baseVersionId:
+          payload.resolution === "version_created"
+            ? payload.versionId
+            : snapshot.baseVersionId,
+        currentVersionId:
+          payload.resolution === "version_created"
+            ? payload.versionId
+            : snapshot.currentVersionId,
+      };
+    }
     case "version.created":
       return {
         ...snapshot,
-        versionHistory: [
-          ...snapshot.versionHistory,
-          event.payload as VersionSummaryItem,
-        ],
+        versionHistory: appendVersionSummary(
+          snapshot.versionHistory,
+          (event.payload as VersionCreatedPayload).version,
+        ),
       };
     case "session.closed":
       return closeSession(snapshot);

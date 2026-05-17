@@ -1,5 +1,5 @@
 import type { Bullet } from "../types/blackboard";
 
-export interface PositionedBullet extends Bullet {
+export type PositionedBullet = Bullet & {
   railOffsetX: number;
-}
+};

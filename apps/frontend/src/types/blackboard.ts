@@ -1,11 +1,55 @@
-export type SessionStatus =
-  | "active"
-  | "proceeding"
-  | "reviewing"
-  | "closed";
+import type {
+  BlackboardCommandPayload as SharedBlackboardCommandPayload,
+  BlackboardErrorCode as SharedBlackboardErrorCode,
+  BulletCommentCreatePayload,
+  BulletStatus,
+  BulletType,
+  CodeBlockUnit as SharedCodeBlockUnit,
+  CommentBullet as SharedCommentBullet,
+  Change,
+  ChangeKind,
+  ChangeStatus,
+  DocumentUnitEditCommitPayload,
+  DocumentUnitType,
+  EditBullet as SharedEditBullet,
+  HeadingUnit as SharedHeadingUnit,
+  HistoryRestoreVersionPayload,
+  HistoryVersionPayload as SharedHistoryVersionPayload,
+  ListItemUnit as SharedListItemUnit,
+  ParagraphUnit as SharedParagraphUnit,
+  ReviewBulkPayload,
+  ReviewChangeStatusChangedPayload,
+  ReviewChangePayload,
+  ReviewChangeSet as SharedReviewChangeSet,
+  ReviewResolvedPayload,
+  SessionSnapshot as SharedSessionSnapshot,
+  SessionStatus,
+  SessionProceedPayload,
+  TableUnit as SharedTableUnit,
+  TitleUnit as SharedTitleUnit,
+  VersionCreatedPayload,
+  VersionSummaryItem as SharedVersionSummaryItem,
+  BlockquoteUnit as SharedBlockquoteUnit,
+} from "@blackboard/schema";
+
+export type {
+  BulletCommentCreatePayload,
+  BulletStatus,
+  BulletType,
+  Change,
+  ChangeKind,
+  ChangeStatus,
+  DocumentUnitEditCommitPayload,
+  DocumentUnitType,
+  HistoryRestoreVersionPayload,
+  ReviewChangeStatusChangedPayload,
+  ReviewResolvedPayload,
+  SessionProceedPayload,
+  SessionStatus,
+  VersionCreatedPayload,
+};
 
 export type FrontendViewMode = "workspace" | "history_preview";
-
 export type ReviewMode = "flow" | "pr";
 
 export type PageStatus =
@@ -16,106 +60,54 @@ export type PageStatus =
   | "history_preview"
   | "closed";
 
-export type DocumentUnitType =
-  | "title"
-  | "heading"
-  | "paragraph"
-  | "list_item"
-  | "blockquote"
-  | "table"
-  | "code_block";
-
-export interface DocumentUnitBase {
-  unitId: string;
-  type: DocumentUnitType;
-  markdown: string;
-  order: number;
-  sourceStart: number;
-  sourceEnd: number;
-}
-
-export interface TitleUnit extends DocumentUnitBase {
-  type: "title";
-  text: string;
-}
-
-export interface HeadingUnit extends DocumentUnitBase {
-  type: "heading";
-  level: 2 | 3;
-  text: string;
-}
-
-export interface ParagraphUnit extends DocumentUnitBase {
-  type: "paragraph";
-  text: string;
-  tone?: "normal" | "muted";
-  dropCap?: boolean;
-}
-
-export interface ListItemUnit extends DocumentUnitBase {
-  type: "list_item";
-  listKind: "ordered" | "unordered";
-  depth: 0 | 1;
-  text: string;
-}
-
-export interface BlockquoteUnit extends DocumentUnitBase {
-  type: "blockquote";
-  text: string;
-}
-
-export interface TableUnit extends DocumentUnitBase {
-  type: "table";
-  headers: string[];
-  rows: string[][];
-}
-
-export interface CodeBlockUnit extends DocumentUnitBase {
-  type: "code_block";
-  language?: string;
-  code: string;
-}
-
-export type DocumentUnit =
-  | TitleUnit
-  | HeadingUnit
-  | ParagraphUnit
-  | ListItemUnit
-  | BlockquoteUnit
-  | TableUnit
-  | CodeBlockUnit;
-
-export type BulletKind = "edit" | "comment";
-export type BulletStatus = "new" | "processing" | "ready" | "applied";
 export type BulletVisualStatus = "new" | "processing" | "processed";
 
-export interface Bullet {
-  bulletId: string;
-  kind: BulletKind;
-  status: BulletStatus;
-  anchorUnitId: string;
-  anchorText?: string;
-  content?: string;
+export interface BulletPresentation {
   title: string;
   body: string;
   author: string;
   railY: number;
 }
 
-export interface Change {
-  changeId: string;
-  unitId: string;
-  kind: "insert" | "delete" | "replace";
-  status: "pending" | "accepted" | "rejected";
-  before?: string;
-  after?: string;
+export interface TitleUnit extends SharedTitleUnit {}
+
+export interface HeadingUnit extends SharedHeadingUnit {}
+
+export interface ParagraphUnit extends SharedParagraphUnit {
+  tone?: "normal" | "muted";
+  dropCap?: boolean;
 }
 
-export interface ReviewChangeSet {
-  changeSetId: string;
+export interface ListItemUnit extends SharedListItemUnit {}
+
+export interface TableUnit extends SharedTableUnit {}
+
+export interface CodeBlockUnit extends SharedCodeBlockUnit {}
+
+export interface BlockquoteUnit extends SharedBlockquoteUnit {}
+
+export type DocumentUnit =
+  | TitleUnit
+  | HeadingUnit
+  | ParagraphUnit
+  | ListItemUnit
+  | TableUnit
+  | CodeBlockUnit
+  | BlockquoteUnit;
+
+export interface EditBullet extends SharedEditBullet, BulletPresentation {}
+
+export interface CommentBullet
+  extends SharedCommentBullet, BulletPresentation {}
+
+export type Bullet = EditBullet | CommentBullet;
+
+export interface ReviewChangeSet extends SharedReviewChangeSet {
   mode: ReviewMode;
-  status: "draft" | "ready" | "settled";
-  changes: Change[];
+}
+
+export interface VersionSummaryItem extends SharedVersionSummaryItem {
+  label?: string;
 }
 
 export type ProceedingStage =
@@ -130,27 +122,18 @@ export interface ProceedingState {
   progress: number;
 }
 
-export interface VersionSummaryItem {
-  versionId: string;
-  label: string;
-  createdAt: string;
-  summary: string;
-}
-
-export interface SessionSnapshot {
-  sessionId: string;
-  sessionStatus: SessionStatus;
-  title: string;
-  baseVersionId: string;
-  currentVersionId: string;
-  workingSetRevision: number;
-  currentContent: string;
-  documentUnits: DocumentUnit[];
+export interface SessionSnapshot
+  extends Omit<
+    SharedSessionSnapshot,
+    "activeBullets" | "activeReviewChangeSet" | "versionHistory"
+  > {
   activeBullets: Bullet[];
   activeReviewChangeSet: ReviewChangeSet | null;
   proceeding: ProceedingState | null;
   versionHistory: VersionSummaryItem[];
 }
+
+export type HistoryVersionPayload = SharedHistoryVersionPayload;
 
 export interface CommandEnvelope<TPayload = unknown> {
   commandId: string;
@@ -168,14 +151,7 @@ export interface EventEnvelope<TPayload = unknown> {
   payload: TPayload;
 }
 
-export type BlackboardErrorCode =
-  | "INVALID_STATE"
-  | "REVISION_MISMATCH"
-  | "NOT_FOUND"
-  | "PROCEED_IN_PROGRESS"
-  | "REVIEW_NOT_OPEN"
-  | "SESSION_CLOSED"
-  | "INTERNAL_ERROR";
+export type BlackboardErrorCode = SharedBlackboardErrorCode;
 
 export interface ErrorEnvelope {
   ok: false;
@@ -194,56 +170,4 @@ export interface CommandAcceptedEnvelope {
 
 export type CommandResponse = CommandAcceptedEnvelope | ErrorEnvelope;
 
-export interface HistoryVersionPayload {
-  versionId: string;
-  versionNumber: number;
-  content: string;
-  createdAt: string;
-  documentUnits: DocumentUnit[];
-}
-
-export interface DocumentUnitEditCommitPayload {
-  unitId: string;
-  markdown: string;
-  workingSetRevision: number;
-}
-
-export interface BulletCommentCreatePayload {
-  unitId: string;
-  content: string;
-  anchorTextSnapshot?: string;
-  anchorStartOffset?: number;
-  anchorEndOffset?: number;
-}
-
-export interface BulletUpdatePayload {
-  bulletId: string;
-  content: string;
-}
-
-export interface SessionProceedPayload {
-  workingSetRevision: number;
-}
-
-export interface ReviewChangePayload {
-  reviewChangeSetId: string;
-  changeId: string;
-}
-
-export interface ReviewBulkPayload {
-  reviewChangeSetId: string;
-}
-
-export interface HistoryRestoreVersionPayload {
-  versionId: string;
-}
-
-export type BlackboardCommandPayload =
-  | DocumentUnitEditCommitPayload
-  | BulletCommentCreatePayload
-  | BulletUpdatePayload
-  | SessionProceedPayload
-  | ReviewChangePayload
-  | ReviewBulkPayload
-  | HistoryRestoreVersionPayload
-  | Record<string, never>;
+export type BlackboardCommandPayload = SharedBlackboardCommandPayload;

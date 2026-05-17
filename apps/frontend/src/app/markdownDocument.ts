@@ -1,11 +1,68 @@
-import type { DocumentUnit } from "../types/blackboard";
-import {
-  parseCodeMarkdown,
-  parseTableMarkdown,
-  stripBlockquoteMarkdown,
-  stripHeadingMarkdown,
-  stripListMarkdown,
-} from "./sessionModel";
+import type { Change, DocumentUnit } from "../types/blackboard";
+
+export function stripHeadingMarkdown(markdown: string): string {
+  return markdown.replace(/^#{1,3}\s+/, "").trim();
+}
+
+export function stripListMarkdown(markdown: string): string {
+  return markdown.replace(/^(\d+\.|-)\s+/, "").trim();
+}
+
+export function stripBlockquoteMarkdown(markdown: string): string {
+  return markdown
+    .split("\n")
+    .map((line) => line.replace(/^>\s?/, ""))
+    .join("\n")
+    .trim();
+}
+
+export function parseCodeMarkdown(markdown: string): {
+  code: string;
+  language?: string;
+} {
+  const match = markdown.match(/^```([^\n`]*)\n?([\s\S]*?)\n?```$/);
+
+  if (!match) {
+    return { code: markdown };
+  }
+
+  return {
+    language: match[1]?.trim() || undefined,
+    code: match[2] ?? "",
+  };
+}
+
+export function parseTableMarkdown(
+  markdown: string,
+): Pick<Extract<DocumentUnit, { type: "table" }>, "headers" | "rows"> | null {
+  const lines = markdown
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    return null;
+  }
+
+  const parseRow = (line: string) =>
+    line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((cell) => cell.trim());
+
+  const separator = parseRow(lines[1] ?? "");
+
+  if (!separator.every((cell) => /^:?-{3,}:?$/.test(cell))) {
+    return null;
+  }
+
+  return {
+    headers: parseRow(lines[0] ?? ""),
+    rows: lines.slice(2).map(parseRow),
+  };
+}
 
 export function documentUnitsFromMarkdown(markdown: string): DocumentUnit[] {
   const blocks = splitMarkdownBlocks(markdown);
@@ -22,6 +79,91 @@ export function documentUnitsFromMarkdown(markdown: string): DocumentUnit[] {
   }
 
   return units;
+}
+
+export function replaceDocumentUnitMarkdown(
+  currentContent: string,
+  targetUnit: Pick<DocumentUnit, "sourceStart" | "sourceEnd">,
+  nextMarkdown: string,
+): {
+  currentContent: string;
+  documentUnits: DocumentUnit[];
+} {
+  const normalizedMarkdown = nextMarkdown.trim();
+  const nextContent =
+    currentContent.slice(0, targetUnit.sourceStart) +
+    normalizedMarkdown +
+    currentContent.slice(targetUnit.sourceEnd);
+
+  return {
+    currentContent: nextContent,
+    documentUnits: documentUnitsFromMarkdown(nextContent),
+  };
+}
+
+export function removeUnitFromContent(
+  currentContent: string,
+  targetUnit: Pick<DocumentUnit, "sourceStart" | "sourceEnd">,
+): string {
+  let end = targetUnit.sourceEnd;
+  while (end < currentContent.length && currentContent[end] === "\n") end++;
+  let start = targetUnit.sourceStart;
+  if (start > 0 && currentContent[start - 1] === "\n") start--;
+  if (start > 0 && currentContent[start - 1] === "\n") start--;
+  return (currentContent.slice(0, Math.max(0, start)) + (start > 0 ? "\n\n" : "") + currentContent.slice(end)).replace(/\n{3,}/g, "\n\n").trim();
+}
+
+export function applyChangeToMarkdown(
+  currentContent: string,
+  documentUnits: DocumentUnit[],
+  change: Change,
+): {
+  currentContent: string;
+  documentUnits: DocumentUnit[];
+} {
+  const targetUnit = documentUnits.find((unit) => unit.unitId === change.unitId);
+
+  if (!targetUnit) {
+    return {
+      currentContent,
+      documentUnits,
+    };
+  }
+
+  const absoluteStart = targetUnit.sourceStart + change.startOffset;
+  const absoluteEnd = targetUnit.sourceStart + change.endOffset;
+  const nextContent =
+    currentContent.slice(0, absoluteStart) +
+    change.afterText +
+    currentContent.slice(absoluteEnd);
+
+  return {
+    currentContent: nextContent,
+    documentUnits: documentUnitsFromMarkdown(nextContent),
+  };
+}
+
+export function findUnitAtSourceOffset(
+  units: DocumentUnit[],
+  offset: number,
+): DocumentUnit | null {
+  return (
+    units.find(
+      (unit) => unit.sourceStart <= offset && offset < unit.sourceEnd,
+    ) ??
+    units.find((unit) => unit.sourceStart >= offset) ??
+    units[units.length - 1] ??
+    null
+  );
+}
+
+export function selectDocumentTitle(
+  units: DocumentUnit[],
+  fallbackTitle: string,
+): string {
+  return (
+    units.find((unit) => unit.type === "title")?.text ?? fallbackTitle
+  );
 }
 
 function splitMarkdownBlocks(markdown: string) {

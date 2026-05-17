@@ -13,7 +13,12 @@ import type {
   ReviewMode,
   SessionSnapshot,
 } from "../types/blackboard";
-import { ApiClient, getSessionIdFromLocation } from "./apiClient";
+import {
+  ApiClient,
+  getSessionRuntimeMode,
+  type SessionRuntimeMode,
+} from "./apiClient";
+import { documentUnitsFromMarkdown } from "./markdownDocument";
 import {
   acceptAllRemainingCommand,
   acceptReviewChangeCommand,
@@ -33,6 +38,7 @@ import {
   completeProceeding,
   commitDocumentUnitEdit,
   createDocumentUnitComment,
+  normalizeSnapshot,
   resolveAllReviewChanges,
   resolveReviewChange,
   startProceeding,
@@ -40,11 +46,12 @@ import {
 } from "./sessionModel";
 
 export interface SessionState {
-  connectionStatus: "connecting" | "connected" | "offline";
+  connectionStatus: "connecting" | "connected" | "offline" | "missing_session";
   fixtureKey: FixtureKey;
   historyPreviewVersionId: string | null;
   lastEvent: EventEnvelope | null;
   reviewMode: ReviewMode;
+  runtimeMode: SessionRuntimeMode;
   snapshot: SessionSnapshot;
   suspendedSnapshot: SessionSnapshot | null;
   viewMode: FrontendViewMode;
@@ -96,14 +103,17 @@ function sessionReducer(
         historyPreviewVersionId: null,
         lastEvent: null,
         reviewMode: reviewModeForFixture(action.fixtureKey),
-        snapshot: fixtures[action.fixtureKey],
+        runtimeMode: { kind: "fixture" },
+        snapshot: normalizeSnapshot(fixtures[action.fixtureKey]),
         suspendedSnapshot: null,
         viewMode: viewModeForFixture(action.fixtureKey),
       };
     case "snapshot.replace":
-      return { ...state, snapshot: action.snapshot };
+      return { ...state, snapshot: normalizeSnapshot(action.snapshot) };
     case "event.apply": {
-      const snapshot = reduceSessionEvent(state.snapshot, action.event);
+      const snapshot = normalizeSnapshot(
+        reduceSessionEvent(state.snapshot, action.event),
+      );
 
       return {
         ...state,
@@ -117,8 +127,7 @@ function sessionReducer(
             ? null
             : state.historyPreviewVersionId,
         lastEvent: action.event,
-        reviewMode:
-          snapshot.activeReviewChangeSet?.mode ?? state.reviewMode,
+        reviewMode: state.reviewMode,
         snapshot,
         suspendedSnapshot:
           action.event.type === "working_set.rebased" ||
@@ -140,7 +149,7 @@ function sessionReducer(
           ...state.snapshot,
           currentVersionId: action.version.versionId,
           currentContent: action.version.content,
-          documentUnits: action.version.documentUnits,
+          documentUnits: documentUnitsFromMarkdown(action.version.content),
           activeBullets: [],
           activeReviewChangeSet: null,
           proceeding: null,
@@ -252,32 +261,35 @@ function sessionReducer(
   }
 }
 
-function shouldUseProtocol(): boolean {
-  return new URLSearchParams(window.location.search).get("transport") !==
-    "fixture";
-}
-
 export function useSessionStore(initialFixture: FixtureKey = "active") {
-  const useProtocol = shouldUseProtocol();
-  const sessionId = getSessionIdFromLocation(window.location);
+  const runtimeMode = getSessionRuntimeMode(window.location);
+  const useProtocol =
+    runtimeMode.kind === "demo" || runtimeMode.kind === "session";
+  const sessionId = useProtocol ? runtimeMode.sessionId : null;
   const apiClientRef = useRef<ApiClient | null>(null);
   const [state, dispatch] = useReducer(sessionReducer, {
-    connectionStatus: useProtocol ? "connecting" : "offline",
+    connectionStatus:
+      runtimeMode.kind === "missing"
+        ? "missing_session"
+        : useProtocol
+          ? "connecting"
+          : "offline",
     fixtureKey: initialFixture,
     historyPreviewVersionId: null,
     lastEvent: null,
     reviewMode: reviewModeForFixture(initialFixture),
-    snapshot: fixtures[initialFixture],
+    runtimeMode,
+    snapshot: normalizeSnapshot(fixtures[initialFixture]),
     suspendedSnapshot: null,
     viewMode: viewModeForFixture(initialFixture),
   });
 
-  if (!apiClientRef.current) {
+  if (sessionId && !apiClientRef.current) {
     apiClientRef.current = new ApiClient(sessionId);
   }
 
   useEffect(() => {
-    if (!useProtocol) {
+    if (!useProtocol || !sessionId) {
       return;
     }
 
@@ -297,6 +309,11 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
       return;
     }
 
+    if (!apiClientRef.current) {
+      dispatch({ type: "connection.offline" });
+      return;
+    }
+
     protocolCommand().catch(() => dispatch({ type: "connection.offline" }));
   }
 
@@ -311,8 +328,13 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
       return;
     }
 
-    apiClientRef
-      .current!.getHistoryVersion(versionId)
+    if (!apiClientRef.current) {
+      dispatch({ type: "connection.offline" });
+      return;
+    }
+
+    apiClientRef.current
+      .getHistoryVersion(versionId)
       .then((version) =>
         dispatch({ type: "history.preview_loaded", version }),
       )
@@ -375,7 +397,8 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
       switchReviewMode: (mode: ReviewMode) =>
         dispatch({ type: "review.mode.switch", mode }),
       acceptReviewChange: (changeId: string) => {
-        const changeSetId = state.snapshot.activeReviewChangeSet?.changeSetId;
+        const changeSetId =
+          state.snapshot.activeReviewChangeSet?.reviewChangeSetId;
 
         if (!changeSetId) {
           return;
@@ -392,7 +415,8 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
         );
       },
       rejectReviewChange: (changeId: string) => {
-        const changeSetId = state.snapshot.activeReviewChangeSet?.changeSetId;
+        const changeSetId =
+          state.snapshot.activeReviewChangeSet?.reviewChangeSetId;
 
         if (!changeSetId) {
           return;
@@ -409,7 +433,8 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
         );
       },
       acceptAllReviewChanges: () => {
-        const changeSetId = state.snapshot.activeReviewChangeSet?.changeSetId;
+        const changeSetId =
+          state.snapshot.activeReviewChangeSet?.reviewChangeSetId;
 
         if (!changeSetId) {
           return;
@@ -421,7 +446,8 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
         );
       },
       rejectAllReviewChanges: () => {
-        const changeSetId = state.snapshot.activeReviewChangeSet?.changeSetId;
+        const changeSetId =
+          state.snapshot.activeReviewChangeSet?.reviewChangeSetId;
 
         if (!changeSetId) {
           return;

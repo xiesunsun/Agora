@@ -1,0 +1,19 @@
+{
+  "reviewChangeSetId": "changeset-1",
+  "sourceWorkingSetRevision": 1,
+  "baseVersionId": "v0",
+  "candidateContent": "# Test\n\nExpanded paragraph.",
+  "status": "open",
+  "changes": [
+    {
+      "changeId": "changeset-1-c0",
+      "unitId": "u-1-paragraph.",
+      "kind": "replace",
+      "startOffset": 0,
+      "endOffset": 9,
+      "beforeText": "Paragraph",
+      "afterText": "Expanded paragraph",
+      "status": "pending"
+    }
+  ]
+}

@@ -30,9 +30,9 @@ export function BulletRail({
       {bullets.map((bullet) => (
         <button
           className="bullet-node"
-          data-anchor-unit-id={bullet.anchorUnitId}
+          data-anchor-unit-id={bullet.unitId}
           data-bullet-id={bullet.bulletId}
-          data-kind={bullet.kind}
+          data-kind={bullet.type}
           data-status={selectBulletVisualStatus(bullet)}
           data-hovered={
             bullet.bulletId === hoveredBulletId ? "true" : undefined
@@ -62,7 +62,7 @@ export function BulletRail({
           <span className="bullet-dot" />
           <span className="bullet-label">
             <strong>{bullet.title}</strong>
-            <small>{bullet.kind}</small>
+            <small>{bullet.type}</small>
           </span>
         </button>
       ))}

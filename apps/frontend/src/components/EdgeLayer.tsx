@@ -139,21 +139,21 @@ function findTargetRect(
   sourceRect: DOMRect,
 ): DOMRect | null {
   const unit = document.querySelector(
-    `[data-unit-id="${activeBullet.anchorUnitId}"]`,
+    `[data-unit-id="${activeBullet.unitId}"]`,
   );
 
   if (!unit) {
     return null;
   }
 
-  if (activeBullet.kind === "edit") {
+  if (activeBullet.type === "edit") {
     return findClosestRect(unit, sourceRect);
   }
 
-  if (activeBullet.kind === "comment" && activeBullet.anchorText) {
+  if (activeBullet.type === "comment" && activeBullet.anchorTextSnapshot) {
     const highlights = [...unit.querySelectorAll(".comment-text-highlight")];
     const matchingHighlight = highlights.find((highlight) =>
-      highlight.textContent?.includes(activeBullet.anchorText ?? ""),
+      highlight.textContent?.includes(activeBullet.anchorTextSnapshot ?? ""),
     );
 
     if (matchingHighlight) {
@@ -161,10 +161,10 @@ function findTargetRect(
     }
   }
 
-  if (activeBullet.anchorText) {
+  if (activeBullet.anchorTextSnapshot) {
     const anchorRect = findAnchorTextRect(
       unit,
-      activeBullet.anchorText,
+      activeBullet.anchorTextSnapshot,
       sourceRect,
     );
 

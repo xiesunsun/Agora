@@ -17,6 +17,10 @@ export function selectActiveBullets(snapshot: SessionSnapshot): Bullet[] {
   return [...snapshot.activeBullets].sort((a, b) => a.railY - b.railY);
 }
 
+export function hasBlockingProceedBullets(snapshot: SessionSnapshot): boolean {
+  return snapshot.activeBullets.length === 0;
+}
+
 export function selectBulletVisualStatus(bullet: Bullet): BulletVisualStatus {
   if (bullet.status === "ready" || bullet.status === "applied") {
     return "processed";

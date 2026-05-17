@@ -1,4 +1,7 @@
-import { selectRevisionLabel } from "../app/sessionSelectors";
+import {
+  hasBlockingProceedBullets,
+  selectRevisionLabel,
+} from "../app/sessionSelectors";
 import type { SessionSnapshot } from "../types/blackboard";
 
 interface PageChromeProps {
@@ -19,7 +22,9 @@ export function PageChrome({
   const statusLabel =
     snapshot.sessionStatus === "active" ? "协作中" : snapshot.sessionStatus;
   const canProceed =
-    snapshot.sessionStatus === "active" && !isInteractionLocked;
+    snapshot.sessionStatus === "active"
+    && !isInteractionLocked
+    && !hasBlockingProceedBullets(snapshot);
   const canPreviewHistory =
     snapshot.sessionStatus === "active" && !isInteractionLocked;
 

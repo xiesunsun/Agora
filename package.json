@@ -4,10 +4,17 @@
   "packageManager": "pnpm@10.33.2",
   "scripts": {
     "dev": "pnpm --filter @blackboard/frontend dev",
+    "dev:backend": "pnpm --filter @blackboard/backend dev",
     "build": "pnpm --filter @blackboard/frontend build",
+    "build:backend": "pnpm --filter @blackboard/backend build",
     "e2e": "pnpm --filter @blackboard/frontend e2e",
     "lint": "pnpm --filter @blackboard/frontend lint",
     "format": "pnpm --filter @blackboard/frontend format",
-    "test": "pnpm --filter @blackboard/frontend test"
+    "test": "pnpm --filter @blackboard/frontend test",
+    "test:backend": "pnpm --filter @blackboard/backend test",
+    "adapter": "pnpm --filter @blackboard/host-adapter start",
+    "adapter:dev": "pnpm --filter @blackboard/host-adapter dev",
+    "runtime": "pnpm --filter @blackboard/runtime start",
+    "runtime:dev": "pnpm --filter @blackboard/runtime dev"
   }
 }

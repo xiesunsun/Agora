@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activeSnapshot } from "../fixtures/active";
 import {
+  hasBlockingProceedBullets,
   selectActiveBullets,
   selectActiveReviewChangeSet,
   selectBulletVisualStatus,
@@ -42,5 +43,18 @@ describe("session selectors", () => {
         "pr",
       ),
     ).toBe("reviewing_pr");
+  });
+
+  it("blocks proceed only when there are no bullets at all", () => {
+    // Has bullets → not blocking
+    expect(hasBlockingProceedBullets(activeSnapshot)).toBe(false);
+
+    // No bullets → blocking
+    expect(
+      hasBlockingProceedBullets({
+        ...activeSnapshot,
+        activeBullets: [],
+      }),
+    ).toBe(true);
   });
 });

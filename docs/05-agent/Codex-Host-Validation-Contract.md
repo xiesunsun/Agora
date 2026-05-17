@@ -35,6 +35,13 @@ These guarantees depend on actual Codex runtime capabilities:
 * `thread/read` and `thread/resume` operate over that handle
 * `turn/start(threadId=...)` can directly target the resumed thread
 
+Clarification:
+
+* these capabilities belong to the **Codex host/runtime control plane**, not to the blackboard backend process itself
+* the `subagent` does not autonomously expose a repo-local API for this; the host exposes the control surface around it
+* in the current Codex environment, the practical equivalents may be host tools such as `spawn_agent`, `send_input`, `wait_agent`, and agent lifecycle notifications rather than a literal repo-local `turn/start(...)` function
+* repository code can prepare messages, persist `subagentThreadId`, and serialize queue state, but it cannot by itself invoke Codex host controls from inside the backend process
+
 ### 2.4 Skill-Enforced
 
 These guarantees depend on stable prompt or skill contracts:
@@ -93,3 +100,49 @@ Use this contract together with:
 * `harness/rules/host-execution.md`
 * `docs/04-design/Acceptance-Matrix.md`
 * `docs/05-agent/MVP-Runbook.md`
+
+## 7. Current Gaps To Close
+
+The following gaps describe the current repository state. They must be classified accurately and closed in the host-adapter rollout. They are not all acceptable steady-state behavior.
+
+### 7.1 Event dispatch is semi-automatic, not direct-to-thread
+
+**Status**: `codex-host-provided` + `repo-missing-adapter`
+
+The host dispatcher (`hostDispatcher.ts`) formats session events into turn messages and prints them to stdout + writes to `.blackboard/events/{sessionId}.jsonl`. The human host then relays these messages to the subagent thread manually.
+
+True direct-to-thread delivery requires the Codex host control plane. In some platform descriptions this appears as `thread/read`, `thread/resume`, and `turn/start(threadId=...)`; in the current Codex tool surface the operational equivalents may be `spawn_agent` plus later `send_input` / wait flows.
+
+The important boundary is:
+
+* Codex **does** provide the subagent-control capability at the host/runtime layer
+* the blackboard backend process in this repository does **not** directly own or expose that control plane
+* therefore the repository still needs a host-side adapter/orchestrator implementation to complete the final hop
+
+This gap is a **current implementation gap**, not a claim that Codex lacks the underlying capability. Per the host execution design, the intended project path is still direct host-to-thread delivery. Manual relay is only a temporary bootstrap fallback and must not be treated as the target V1 behavior.
+
+### 7.2 subagentThreadId is in-memory only
+
+**Status**: `repo-enforced` (stored in session state), not restart-safe
+
+`POST /cli/sessions/:id/thread` persists `subagentThreadId` in the in-memory session store. This is intentional for V1 (no database). If the backend restarts, the threadId is lost and must be re-registered.
+
+### 7.3 Proceed mock is opt-in
+
+**Status**: `repo-enforced`
+
+`ENABLE_PROCEED_MOCK=true` enables the simulated candidate. Default behavior waits for the real subagent to call `POST /cli/sessions/:id/review-candidate`. This is the correct default for live sessions.
+
+### 7.4 /cli/health probes frontend but not backend internals
+
+**Status**: `repo-enforced`
+
+`GET /cli/health` performs a real HTTP probe of the frontend URL and returns `frontendReachable`. The backend itself is implicitly reachable if this endpoint responds. No deeper health checks (DB, session count, etc.) are implemented in V1.
+
+### 7.5 MVP interpretation
+
+The current document set should be read as follows:
+
+* `Codex` already provides the host/runtime capability needed to control a long-lived `subagent thread`
+* the missing piece in this repository is the **host adapter** that binds backend dispatch events to that Codex host control surface
+* until that adapter exists, blackboard host execution is not considered fully implemented

@@ -89,5 +89,5 @@ export function requestCloseCommand(apiClient: ApiClient) {
 export function reviewChangeSetId(
   changeSet: ReviewChangeSet | null,
 ): string | null {
-  return changeSet?.changeSetId ?? null;
+  return changeSet?.reviewChangeSetId ?? null;
 }

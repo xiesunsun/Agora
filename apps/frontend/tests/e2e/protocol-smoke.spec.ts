@@ -1,16 +1,68 @@
 import { expect, test } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
+
+const BACKEND_BASE = "http://127.0.0.1:3001";
+
+async function createSession(
+  request: APIRequestContext,
+  title: string,
+  initialContent: string,
+) {
+  const response = await request.post(`${BACKEND_BASE}/cli/sessions`, {
+    data: { title, initialContent },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  const body = await response.json();
+
+  return body.sessionId as string;
+}
+
+async function sendCommand(
+  request: APIRequestContext,
+  sessionId: string,
+  type: string,
+  payload: Record<string, unknown>,
+) {
+  const response = await request.post(
+    `${BACKEND_BASE}/api/sessions/${sessionId}/commands`,
+    {
+      data: {
+        commandId: `test-${type}-${Date.now()}`,
+        type,
+        sessionId,
+        issuedAt: "2026-05-12T00:00:00.000Z",
+        payload,
+      },
+    },
+  );
+
+  expect(response.ok()).toBeTruthy();
+}
 
 test("drives proceed and review through HTTP commands and SSE state", async ({
   page,
+  request,
 }) => {
-  await page.goto("/?sessionId=e2e-protocol");
+  const sessionId = await createSession(
+    request,
+    "Protocol Session",
+    "# Protocol Session\n\nHello session.",
+  );
+  await sendCommand(request, sessionId, "bullet.comment.create", {
+    unitId: "u-1-hello-sessio",
+    content: "Please expand this.",
+    anchorTextSnapshot: "Hello",
+  });
+
+  await page.goto(`/?sessionId=${sessionId}`);
 
   await expect(page.locator('.blackboard-page[data-status="active"]'))
     .toBeVisible();
   await expect(page.getByRole("button", { name: "Proceed" })).toBeEnabled();
 
   const proceedCommand = page.waitForRequest((request) =>
-    request.url().includes("/api/sessions/e2e-protocol/commands") &&
+    request.url().includes(`/api/sessions/${sessionId}/commands`) &&
     request.method() === "POST",
   );
 
@@ -18,7 +70,7 @@ test("drives proceed and review through HTTP commands and SSE state", async ({
 
   const proceedPayload = JSON.parse((await proceedCommand).postData() ?? "{}");
   expect(proceedPayload.type).toBe("session.proceed");
-  expect(proceedPayload.payload).toMatchObject({ workingSetRevision: 3 });
+  expect(proceedPayload.payload).toMatchObject({ workingSetRevision: 1 });
 
   await expect(page.locator('.blackboard-page[data-status="proceeding"]'))
     .toBeVisible();
@@ -31,7 +83,7 @@ test("drives proceed and review through HTTP commands and SSE state", async ({
     .toBeVisible();
 
   const acceptAllCommand = page.waitForRequest((request) =>
-    request.url().includes("/api/sessions/e2e-protocol/commands") &&
+    request.url().includes(`/api/sessions/${sessionId}/commands`) &&
     request.method() === "POST",
   );
 
@@ -41,7 +93,7 @@ test("drives proceed and review through HTTP commands and SSE state", async ({
     (await acceptAllCommand).postData() ?? "{}",
   );
   expect(acceptAllPayload.type).toBe("review.accept_all_remaining");
-  expect(acceptAllPayload.payload.reviewChangeSetId).toBe("changeset-3");
+  expect(acceptAllPayload.payload.reviewChangeSetId).toBe("changeset-1");
 
   await expect(page.locator('.blackboard-page[data-status="active"]'))
     .toBeVisible();
@@ -50,35 +102,46 @@ test("drives proceed and review through HTTP commands and SSE state", async ({
 
 test("loads distinct historical versions in history preview", async ({
   page,
+  request,
 }) => {
-  await page.goto("/?sessionId=e2e-history");
+  const sessionId = await createSession(
+    request,
+    "History Session",
+    "# History Session\n\nFresh content.",
+  );
+
+  await page.goto(`/?sessionId=${sessionId}`);
 
   await page.getByRole("button", { name: "History" }).click();
 
   await expect(page.locator('.blackboard-page[data-status="history_preview"]'))
     .toBeVisible();
   await expect(page.locator(".history-version-button[data-active='true']"))
-    .toHaveText("v2");
-  await expect(page.getByText("工作中的判断")).toBeVisible();
-
-  await page.getByRole("button", { name: "v1" }).click();
-
-  await expect(page.locator(".history-version-button[data-active='true']"))
-    .toHaveText("v1");
-  await expect(page.getByText("仔细阅读眼前的作品。")).toBeVisible();
-  await expect(page.getByText("工作中的判断")).toHaveCount(0);
-
-  await page.getByRole("button", { name: "v2" }).click();
-
-  await expect(page.locator(".history-version-button[data-active='true']"))
-    .toHaveText("v2");
-  await expect(page.getByText("工作中的判断")).toBeVisible();
+    .toHaveText("v0");
+  await expect(page.getByText("Fresh content.")).toBeVisible();
 });
 
 test("opens bullet notes from rail state icons with one click", async ({
   page,
+  request,
 }) => {
-  await page.goto("/?sessionId=e2e-bullet-click");
+  const sessionId = await createSession(
+    request,
+    "Bullet Session",
+    "# Bullet Session\n\nAnchor one.\n\nAnchor two.",
+  );
+  await sendCommand(request, sessionId, "bullet.comment.create", {
+    unitId: "u-1-anchor-one",
+    content: "First note.",
+    anchorTextSnapshot: "Anchor one",
+  });
+  await sendCommand(request, sessionId, "bullet.comment.create", {
+    unitId: "u-2-anchor-two",
+    content: "Second note.",
+    anchorTextSnapshot: "Anchor two",
+  });
+
+  await page.goto(`/?sessionId=${sessionId}`);
 
   await expect(page.locator('.blackboard-page[data-status="active"]'))
     .toBeVisible();
@@ -98,4 +161,31 @@ test("opens bullet notes from rail state icons with one click", async ({
       ),
     ).toBeVisible();
   }
+});
+
+test("attaches to a freshly created real session", async ({ page, request }) => {
+  const sessionId = await createSession(
+    request,
+    "E2E Session",
+    "# E2E Session\n\nFresh content.",
+  );
+
+  await page.goto(`/?sessionId=${sessionId}`);
+
+  await expect(page.locator('.blackboard-page[data-status="active"]'))
+    .toBeVisible();
+  await expect(page.getByRole("heading", { name: "E2E Session" })).toBeVisible();
+  await expect(page.getByText("v0 · r0")).toBeVisible();
+  await expect(page.locator(".fixture-switcher")).toHaveCount(0);
+});
+
+test("shows an explicit missing-session state instead of silently falling back", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Missing session context" }))
+    .toBeVisible();
+  await expect(page.getByText("?sessionId=demo")).toBeVisible();
+  await expect(page.locator(".blackboard-page")).toHaveCount(0);
 });

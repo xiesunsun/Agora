@@ -5,7 +5,8 @@ export function subscribeToSessionEvents(
   onEvent: (event: EventEnvelope) => void,
   onError: () => void,
 ): () => void {
-  const source = new EventSource(`/api/sessions/${sessionId}/events`);
+  const base = (import.meta as { env?: Record<string, string> }).env?.VITE_BACKEND_URL ?? "";
+  const source = new EventSource(`${base}/api/sessions/${sessionId}/events`);
 
   source.onmessage = (message) => {
     onEvent(JSON.parse(message.data) as EventEnvelope);

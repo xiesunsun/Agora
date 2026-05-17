@@ -1,6 +1,5 @@
 import type { HistoryVersionPayload } from "../types/blackboard";
 import { activeSnapshot } from "./active";
-import { documentUnitsFromMarkdown } from "../app/markdownDocument";
 
 const v1Content = `# 批评作为一种同行写作
 
@@ -76,6 +75,5 @@ function buildHistoryVersion(
     versionNumber,
     createdAt,
     content,
-    documentUnits: documentUnitsFromMarkdown(content),
   };
 }

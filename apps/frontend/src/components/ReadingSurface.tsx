@@ -68,8 +68,9 @@ export function ReadingSurface({
     [bullets, selectionDraft, mappedBullet],
   );
   const activeAnchorUnitId =
-    mappedBullet && (mappedBullet.kind === "edit" || !mappedBullet.anchorText)
-      ? mappedBullet.anchorUnitId
+    mappedBullet &&
+    (mappedBullet.type === "edit" || !mappedBullet.anchorTextSnapshot)
+      ? mappedBullet.unitId
       : null;
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export function ReadingSurface({
 
       for (const bullet of bullets) {
         const unit = document.querySelector(
-          `[data-unit-id="${bullet.anchorUnitId}"]`,
+          `[data-unit-id="${bullet.unitId}"]`,
         );
 
         if (!unit) {
@@ -153,11 +154,11 @@ export function ReadingSurface({
       }
 
       const range = selection.getRangeAt(0);
-      const container =
-        range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
-          ? (range.commonAncestorContainer as Element)
-          : range.commonAncestorContainer.parentElement;
-      const unitElement = container?.closest<HTMLElement>("[data-unit-id]");
+      const startNode =
+        range.startContainer.nodeType === Node.ELEMENT_NODE
+          ? (range.startContainer as Element)
+          : range.startContainer.parentElement;
+      const unitElement = startNode?.closest<HTMLElement>("[data-unit-id]");
 
       if (!unitElement || !unitElement.closest(".document-view")) {
         return;
@@ -343,8 +344,10 @@ function buildCommentHighlightsByUnit(
   };
 
   for (const bullet of bullets) {
-    if (bullet.kind === "comment" && bullet.anchorText) {
-      addHighlight(bullet.anchorUnitId, bullet.anchorText, {
+    if (bullet.type === "comment" && bullet.anchorTextSnapshot) {
+      // For cross-unit selections, anchorText may contain newlines; only highlight the first line
+      const highlightText = bullet.anchorTextSnapshot.split("\n")[0];
+      addHighlight(bullet.unitId, highlightText, {
         bulletId: bullet.bulletId,
       });
     }
@@ -356,9 +359,9 @@ function buildCommentHighlightsByUnit(
     });
   }
 
-  if (activeBullet?.kind === "comment" && activeBullet.anchorText) {
-    addHighlight(activeBullet.anchorUnitId, activeBullet.anchorText, {
-      activeKind: activeBullet.kind,
+  if (activeBullet?.type === "comment" && activeBullet.anchorTextSnapshot) {
+    addHighlight(activeBullet.unitId, activeBullet.anchorTextSnapshot.split("\n")[0], {
+      activeKind: activeBullet.type,
       bulletId: activeBullet.bulletId,
       contributesToCount: false,
       isActive: true,

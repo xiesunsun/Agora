@@ -7,16 +7,24 @@ interface BulletNoteProps {
   onClose: () => void;
 }
 
+function truncateAnchor(text: string): string {
+  const firstLine = text.split("\n")[0] ?? text;
+  if (firstLine.length > 60 || text.includes("\n")) {
+    return firstLine.slice(0, 60) + "\u2026";
+  }
+  return firstLine;
+}
+
 export function BulletNote({ bullet, onClose }: BulletNoteProps) {
   const body =
-    bullet.kind === "edit"
-      ? "这一段被用户修改了"
+    bullet.type === "edit"
+      ? "\u8FD9\u4E00\u6BB5\u88AB\u7528\u6237\u4FEE\u6539\u4E86"
       : (bullet.content ?? bullet.body);
 
   return (
     <aside
       className="bullet-note"
-      data-kind={bullet.kind}
+      data-kind={bullet.type}
       data-status={selectBulletVisualStatus(bullet)}
       style={
         {
@@ -31,8 +39,10 @@ export function BulletNote({ bullet, onClose }: BulletNoteProps) {
           ×
         </button>
       </div>
-      {bullet.kind === "comment" && bullet.anchorText ? (
-        <p className="bullet-note-anchor">“{bullet.anchorText}”</p>
+      {bullet.type === "comment" && bullet.anchorTextSnapshot ? (
+        <p className="bullet-note-anchor">
+          {"\u201C"}{truncateAnchor(bullet.anchorTextSnapshot)}{"\u201D"}
+        </p>
       ) : null}
       <p className="bullet-note-body">{body}</p>
     </aside>

@@ -17,8 +17,9 @@ import {
   commitDocumentUnitEdit,
   completeProceeding,
   createDocumentUnitComment,
-  resolveAllReviewChanges,
-  resolveReviewChange,
+  resolveAllReviewChangesWithSettlement,
+  resolveReviewChangeWithSettlement,
+  type ReviewSettlementResult,
   restoreVersionSnapshot,
   startProceeding,
   updateProceedingProgress,
@@ -58,7 +59,10 @@ export function blackboardMockProtocolPlugin() {
           /^\/api\/sessions\/([^/]+)(?:\/([^/]+)(?:\/([^/]+))?)?$/,
         );
 
-        if (!match) {
+        const referer = (request as { headers?: Record<string, string> }).headers?.referer ?? "";
+        const isFixtureMode = new URL(referer || "http://localhost").searchParams.get("transport") === "fixture";
+
+        if (!match || !isFixtureMode) {
           next();
           return;
         }
@@ -231,19 +235,45 @@ function applyCommand(sessionId: string, command: CommandEnvelope) {
       applyReviewCommand(sessionId, command, "rejected");
       break;
     case "review.accept_all_remaining":
-      snapshot = setSnapshot(
-        sessionId,
-        resolveAllReviewChanges(snapshot, "accepted"),
-      );
-      broadcast(sessionId, "review.resolved", snapshot);
+      {
+        const changeSet = snapshot.activeReviewChangeSet;
+        const pendingChanges =
+          changeSet?.changes.filter((change) => change.status === "pending") ??
+          [];
+        const result = resolveAllReviewChangesWithSettlement(
+          snapshot,
+          "accepted",
+        );
+        snapshot = setSnapshot(sessionId, result.snapshot);
+        broadcastBulkReviewStatusChanges(
+          sessionId,
+          changeSet?.reviewChangeSetId,
+          pendingChanges,
+          "accepted",
+        );
+        broadcastReviewSettlement(sessionId, result);
+      }
       broadcast(sessionId, "session.snapshot", snapshot);
       break;
     case "review.reject_all_remaining":
-      snapshot = setSnapshot(
-        sessionId,
-        resolveAllReviewChanges(snapshot, "rejected"),
-      );
-      broadcast(sessionId, "review.resolved", snapshot);
+      {
+        const changeSet = snapshot.activeReviewChangeSet;
+        const pendingChanges =
+          changeSet?.changes.filter((change) => change.status === "pending") ??
+          [];
+        const result = resolveAllReviewChangesWithSettlement(
+          snapshot,
+          "rejected",
+        );
+        snapshot = setSnapshot(sessionId, result.snapshot);
+        broadcastBulkReviewStatusChanges(
+          sessionId,
+          changeSet?.reviewChangeSetId,
+          pendingChanges,
+          "rejected",
+        );
+        broadcastReviewSettlement(sessionId, result);
+      }
       broadcast(sessionId, "session.snapshot", snapshot);
       break;
     case "history.restore_version": {
@@ -264,7 +294,6 @@ function applyCommand(sessionId: string, command: CommandEnvelope) {
         restoreVersionSnapshot(
           snapshot,
           version.versionId,
-          version.documentUnits,
           version.content,
         ),
       );
@@ -329,6 +358,8 @@ function startProceedFlow(sessionId: string) {
     const snapshot = getSnapshot(sessionId);
     const changeSet = buildDefaultReviewChangeSet(
       `changeset-${snapshot.workingSetRevision}`,
+      snapshot.workingSetRevision,
+      snapshot.baseVersionId ?? snapshot.currentVersionId,
     );
     const nextSnapshot = setSnapshot(
       sessionId,
@@ -345,21 +376,71 @@ function applyReviewCommand(
   status: "accepted" | "rejected",
 ) {
   const payload = command.payload as { changeId: string };
-  const snapshot = setSnapshot(
-    sessionId,
-    resolveReviewChange(getSnapshot(sessionId), payload.changeId, status),
+  const currentSnapshot = getSnapshot(sessionId);
+  const changeSet = currentSnapshot.activeReviewChangeSet;
+  const targetChange = changeSet?.changes.find(
+    (change) => change.changeId === payload.changeId,
   );
-
-  broadcast(sessionId, "review.change_status_changed", {
-    changeId: payload.changeId,
+  const result = resolveReviewChangeWithSettlement(
+    currentSnapshot,
+    payload.changeId,
     status,
-  });
+  );
+  const snapshot = setSnapshot(sessionId, result.snapshot);
 
-  if (snapshot.sessionStatus === "active") {
-    broadcast(sessionId, "review.resolved", snapshot);
+  if (changeSet && targetChange) {
+    broadcast(sessionId, "review.change_status_changed", {
+      reviewChangeSetId: changeSet.reviewChangeSetId,
+      changeId: payload.changeId,
+      fromStatus: targetChange.status,
+      toStatus: status,
+    });
   }
 
+  broadcastReviewSettlement(sessionId, result);
   broadcast(sessionId, "session.snapshot", snapshot);
+}
+
+function broadcastReviewSettlement(
+  sessionId: string,
+  result: ReviewSettlementResult,
+) {
+  if (!result.settlement) {
+    return;
+  }
+
+  if (result.settlement.historyVersion) {
+    historyVersions[result.settlement.historyVersion.versionId] =
+      result.settlement.historyVersion;
+  }
+
+  if (result.settlement.version) {
+    broadcast(sessionId, "version.created", {
+      version: result.settlement.version,
+    });
+  }
+
+  broadcast(sessionId, "review.resolved", result.settlement.reviewResolved);
+}
+
+function broadcastBulkReviewStatusChanges(
+  sessionId: string,
+  reviewChangeSetId: string | undefined,
+  pendingChanges: Array<{ changeId: string; status: "pending" | "accepted" | "rejected" }>,
+  toStatus: "accepted" | "rejected",
+) {
+  if (!reviewChangeSetId) {
+    return;
+  }
+
+  for (const change of pendingChanges) {
+    broadcast(sessionId, "review.change_status_changed", {
+      reviewChangeSetId,
+      changeId: change.changeId,
+      fromStatus: change.status,
+      toStatus,
+    });
+  }
 }
 
 function broadcast(sessionId: string, type: string, payload: unknown) {

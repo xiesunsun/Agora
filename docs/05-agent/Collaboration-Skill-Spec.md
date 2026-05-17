@@ -164,7 +164,8 @@ V1 中，宿主不应将黑板事件无序推送给 `subagent`。
 * 本文中的 `subagent` 是一个角色名；
 * 在当前 `Codex` 目标下，该角色由一个原生 `subagent thread` 承载；
 * `main agent` 启动该原生 `subagent` 后，宿主持久化其 `threadId`；
-* 后续 session 事件不再通过 `main agent` 转发，而是直接交给该 `subagent thread`。
+* 后续 session 事件不再通过 `main agent` 转发，而是直接交给该 `subagent thread`；
+* 在当前实现中，这个 direct-to-thread 过程由 host-adapter 负责，不属于 `main agent` 的普通对话职责。
 
 ### 4.3 进入 blackboard 是任务层决策
 
@@ -254,6 +255,33 @@ skill 解决的是：
 * 启动原生 `subagent` 并记录其 `threadId`；
 * 在黑板会话结束后吸收结果并恢复主任务流程。
 
+对于写作型 blackboard 会话，`main agent` 默认只应提供：
+
+* 主题；
+* 目标；
+* 上下文；
+* 关键约束；
+* 成功标准。
+
+`main agent` 默认不应先写出整篇起稿，再把它交给 `subagent` 执行。除非人类明确要求保留 `main agent` 给出的原句，否则首版讨论文稿应由 `subagent` 在启动回合内生成。
+
+对于真实 blackboard 协作，上述 handoff 至少必须包含：
+
+* `Role`
+* `Task Goal`
+* `Why Blackboard`
+* `Context`
+* `Initial Content`
+* `Success Criteria`
+* `Startup Contract`
+* `Return Contract`
+
+其中 `Initial Content` 不要求由 `main agent` 提供完整正文。更常见且更符合角色分工的做法是：
+
+* `main agent` 在该段说明希望 `subagent` 生成什么样的首版文稿；
+* `subagent` 基于主题、目标、上下文与约束，自行形成首版 `sessionDocument.md`；
+* 只有当人类明确要求以某段既定文字作为开头时，`main agent` 才应在 `Initial Content` 中直接放入完整正文。
+
 ### 6.3 不负责的事情
 
 `main agent` 默认不负责：
@@ -261,7 +289,9 @@ skill 解决的是：
 * 长时间驻留于 blackboard session 内处理细粒度事件；
 * 直接维护当前 session 的本地工作区；
 * 直接处理每条 bullet 的局部 resolution；
+* 先行完成整篇正文起稿，再把其余工作交给 `subagent`；
 * 在每次 `Proceed` 后亲自统合候选正文。
+* 手工向 `subagent` 逐条转发后续 blackboard 事件。
 
 如果未来某个平台场景需要由单线程 agent 同时承担两类职责，那属于实现退化形态，而不是本文默认形态。
 
@@ -517,6 +547,12 @@ PRD 定义的是产品层能力与用户体验。
 * 宿主可以通过 `Codex App Server` 对该 `threadId` 执行 `thread/read`、`thread/resume`、`turn/start` 与必要时的 `turn/steer`；
 * 宿主可以为该 `subagent` 提供私有工作区并串行交付 session 事件；
 * blackboard backend / frontend / CLI 提供基础会话能力。
+
+说明：
+
+* 这里强调的是 **Codex 宿主层** 具备对子 agent 的控制能力；
+* 这不等于 blackboard backend 进程内部天然拥有一套可直接调用的 subagent API；
+* 若当前 Codex 环境提供的是 `spawn_agent` / `send_input` / `wait_agent` 等宿主工具，而不是字面上的 `turn/start(threadId=...)`，应视为同一设计意图的具体实现形式。
 
 ---
 

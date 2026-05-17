@@ -12,6 +12,7 @@
     "test": "vitest run src/test"
   },
   "dependencies": {
+    "@blackboard/schema": "workspace:*",
     "@vitejs/plugin-react": "^5.1.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

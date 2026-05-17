@@ -1,0 +1,22 @@
+{
+  "name": "@blackboard/host-adapter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --watch --import tsx/esm src/index.ts",
+    "start": "node --import tsx/esm src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@blackboard/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3",
+    "vitest": "3.1.4"
+  }
+}

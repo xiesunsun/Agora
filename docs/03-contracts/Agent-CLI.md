@@ -151,11 +151,11 @@ V1 建议约定：
 
 V1 的 `subagent-facing CLI` 最小命令集合为：
 
-* `create_session`
-* `get_snapshot`
-* `mark_bullet_ready`
-* `submit_review_candidate`
-* `close_session`
+* `blackboard-runtime create-session`
+* `blackboard-runtime get-snapshot`
+* `blackboard-runtime mark-bullet-ready`
+* `blackboard-runtime submit-review-candidate`
+* `blackboard-runtime close-session`
 
 这些命令全部是高层业务命令。
 
@@ -206,6 +206,7 @@ V1 当前约束：
 最小输出建议：
 
 * `sessionId`
+* `frontendUrl`
 
 #### 副作用
 
@@ -218,7 +219,7 @@ V1 当前约束：
 
 V1 采用：
 
-* `subagent create_session`
+* `blackboard-runtime create-session --backend-url {backendUrl} --title "..." --initial-content-file sessionDocument.md`
 
 而不是：
 
@@ -260,6 +261,10 @@ V1 采用：
 * `Proceed` 前重新确认最新正文；
 * 本地工作区失效后重建；
 * 调试与兜底恢复。
+
+V1 推荐命令形态：
+
+* `blackboard-runtime get-snapshot --backend-url {backendUrl} --session {sessionId} --write-current-content sessionDocument.md`
 
 ---
 
@@ -303,6 +308,10 @@ V1 中：
 * `new -> processing` 由 runtime/backend 自动推进；
 * `processing -> ready` 由 `subagent` 显式调用本命令推进。
 
+V1 推荐命令形态：
+
+* `blackboard-runtime mark-bullet-ready --backend-url {backendUrl} --session {sessionId} --bullet {bulletId}`
+
 ---
 
 ### 6.4 `submit_review_candidate`
@@ -345,6 +354,10 @@ V1 中，本命令只提交：
 
 这些内容要么属于 `subagent` 本地工作区，要么由 backend 根据候选正文自行生成。
 
+V1 推荐命令形态：
+
+* `blackboard-runtime submit-review-candidate --backend-url {backendUrl} --session {sessionId} --candidate-file candidate.md`
+
 ---
 
 ### 6.5 `close_session`
@@ -383,6 +396,10 @@ V1 中：
 
 * frontend 的关闭动作只是关闭请求；
 * `close_session` 才是正式 closed 的唯一 CLI 入口。
+
+V1 推荐命令形态：
+
+* `blackboard-runtime close-session --backend-url {backendUrl} --session {sessionId}`
 
 ---
 

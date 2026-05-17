@@ -9,3 +9,6 @@ playwright-report/
 test-results/
 blob-report/
 *.tsbuildinfo
+*.tgz
+.blackboard/runtime/
+sessions/

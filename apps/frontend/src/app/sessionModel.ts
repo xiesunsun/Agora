@@ -1,130 +1,25 @@
 import type {
   Bullet,
+  CommentBullet,
   Change,
   DocumentUnit,
+  EditBullet,
+  HistoryVersionPayload,
   ProceedingStage,
   ReviewChangeSet,
   ReviewMode,
+  ReviewResolvedPayload,
   SessionSnapshot,
+  VersionSummaryItem,
 } from "../types/blackboard";
-
-export function stripHeadingMarkdown(markdown: string): string {
-  return markdown.replace(/^#{1,3}\s+/, "").trim();
-}
-
-export function stripListMarkdown(markdown: string): string {
-  return markdown.replace(/^(\d+\.|-)\s+/, "").trim();
-}
-
-export function stripBlockquoteMarkdown(markdown: string): string {
-  return markdown
-    .split("\n")
-    .map((line) => line.replace(/^>\s?/, ""))
-    .join("\n")
-    .trim();
-}
-
-export function parseCodeMarkdown(markdown: string): {
-  code: string;
-  language?: string;
-} {
-  const match = markdown.match(/^```([^\n`]*)\n?([\s\S]*?)\n?```$/);
-
-  if (!match) {
-    return { code: markdown };
-  }
-
-  return {
-    language: match[1]?.trim() || undefined,
-    code: match[2] ?? "",
-  };
-}
-
-export function parseTableMarkdown(
-  markdown: string,
-): Pick<Extract<DocumentUnit, { type: "table" }>, "headers" | "rows"> | null {
-  const lines = markdown
-    .trim()
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length < 2) {
-    return null;
-  }
-
-  const parseRow = (line: string) =>
-    line
-      .replace(/^\|/, "")
-      .replace(/\|$/, "")
-      .split("|")
-      .map((cell) => cell.trim());
-
-  const separator = parseRow(lines[1] ?? "");
-
-  if (!separator.every((cell) => /^:?-{3,}:?$/.test(cell))) {
-    return null;
-  }
-
-  return {
-    headers: parseRow(lines[0] ?? ""),
-    rows: lines.slice(2).map(parseRow),
-  };
-}
-
-export function updateDocumentUnitMarkdown(
-  unit: DocumentUnit,
-  markdown: string,
-): DocumentUnit {
-  const trimmedMarkdown = markdown.trim();
-
-  switch (unit.type) {
-    case "title":
-      return {
-        ...unit,
-        markdown: trimmedMarkdown,
-        text: stripHeadingMarkdown(trimmedMarkdown),
-      };
-    case "heading":
-      return {
-        ...unit,
-        markdown: trimmedMarkdown,
-        text: stripHeadingMarkdown(trimmedMarkdown),
-      };
-    case "list_item":
-      return {
-        ...unit,
-        markdown: trimmedMarkdown,
-        text: stripListMarkdown(trimmedMarkdown),
-      };
-    case "blockquote":
-      return {
-        ...unit,
-        markdown: trimmedMarkdown,
-        text: stripBlockquoteMarkdown(trimmedMarkdown),
-      };
-    case "paragraph":
-      return { ...unit, markdown: trimmedMarkdown, text: trimmedMarkdown };
-    case "code_block": {
-      const parsed = parseCodeMarkdown(trimmedMarkdown);
-
-      return { ...unit, markdown: trimmedMarkdown, ...parsed };
-    }
-    case "table":
-      return {
-        ...unit,
-        markdown: trimmedMarkdown,
-        ...(parseTableMarkdown(trimmedMarkdown) ?? {}),
-      };
-  }
-}
-
-export function buildContent(units: DocumentUnit[]): string {
-  return [...units]
-    .sort((a, b) => a.order - b.order)
-    .map((unit) => unit.markdown)
-    .join("\n\n");
-}
+import {
+  applyChangeToMarkdown,
+  documentUnitsFromMarkdown,
+  findUnitAtSourceOffset,
+  removeUnitFromContent,
+  replaceDocumentUnitMarkdown,
+  selectDocumentTitle,
+} from "./markdownDocument";
 
 export function railYForUnit(
   unit: DocumentUnit,
@@ -144,6 +39,85 @@ export function railYForUnit(
   return railY;
 }
 
+function createBulletPresentation(
+  bullet:
+    | Pick<EditBullet, "type" | "beforeText" | "afterText">
+    | Pick<CommentBullet, "type" | "content" | "anchorTextSnapshot">,
+  railY: number,
+): Pick<Bullet, "title" | "body" | "author" | "railY"> {
+  if (bullet.type === "edit") {
+    return {
+      title: "Edit",
+      body: `Edited from "${bullet.beforeText ?? ""}" to "${bullet.afterText ?? ""}".`,
+      author: "You",
+      railY,
+    };
+  }
+
+  return {
+    title: "Comment",
+    body: bullet.content ?? bullet.anchorTextSnapshot ?? "",
+    author: "You",
+    railY,
+  };
+}
+
+export function decorateBullet(
+  bullet:
+    | (Omit<EditBullet, "title" | "body" | "author" | "railY"> &
+        Partial<Pick<EditBullet, "title" | "body" | "author" | "railY">>)
+    | (Omit<CommentBullet, "title" | "body" | "author" | "railY"> &
+        Partial<
+          Pick<CommentBullet, "title" | "body" | "author" | "railY">
+        >),
+  units: DocumentUnit[],
+  occupiedBullets: Bullet[],
+): Bullet {
+  const targetUnit = units.find((unit) => unit.unitId === bullet.unitId);
+  const railY =
+    bullet.railY ??
+    (targetUnit ? railYForUnit(targetUnit, units, occupiedBullets) : 50);
+
+  return {
+    ...createBulletPresentation(bullet, railY),
+    ...bullet,
+    railY,
+  } as Bullet;
+}
+
+export function normalizeReviewChangeSet(
+  reviewChangeSet: ReviewChangeSet | null | undefined,
+): ReviewChangeSet | null {
+  if (!reviewChangeSet) {
+    return null;
+  }
+
+  return {
+    ...reviewChangeSet,
+    mode: reviewChangeSet.mode ?? "flow",
+  };
+}
+
+export function normalizeSnapshot(snapshot: SessionSnapshot): SessionSnapshot {
+  const activeBullets: Bullet[] = [];
+
+  for (const bullet of snapshot.activeBullets) {
+    activeBullets.push(decorateBullet(bullet, snapshot.documentUnits, activeBullets));
+  }
+
+  return {
+    ...snapshot,
+    activeBullets,
+    activeReviewChangeSet: normalizeReviewChangeSet(
+      snapshot.activeReviewChangeSet,
+    ),
+    versionHistory: snapshot.versionHistory.map((version) => ({
+      ...version,
+      label: version.label ?? version.versionId,
+    })),
+  };
+}
+
 export function commitDocumentUnitEdit(
   snapshot: SessionSnapshot,
   unitId: string,
@@ -159,35 +133,37 @@ export function commitDocumentUnitEdit(
 
   const trimmedMarkdown = markdown.trim();
 
-  if (!trimmedMarkdown || trimmedMarkdown === targetUnit.markdown.trim()) {
+  if (trimmedMarkdown === targetUnit.markdown.trim()) {
     return snapshot;
   }
 
-  const documentUnits = snapshot.documentUnits.map((unit) =>
-    unit.unitId === unitId
-      ? updateDocumentUnitMarkdown(unit, trimmedMarkdown)
-      : unit,
-  );
-  const editedUnit = documentUnits.find((unit) => unit.unitId === unitId)!;
+  // Empty markdown = delete the unit
+  const isDelete = !trimmedMarkdown;
+  const nextContent = isDelete
+    ? removeUnitFromContent(snapshot.currentContent, targetUnit)
+    : replaceDocumentUnitMarkdown(snapshot.currentContent, targetUnit, trimmedMarkdown).currentContent;
+  const nextUnits = documentUnitsFromMarkdown(nextContent);
+  const editedUnit = isDelete
+    ? (nextUnits[0] ?? targetUnit)
+    : (findUnitAtSourceOffset(nextUnits, targetUnit.sourceStart) ?? nextUnits[0] ?? targetUnit);
   const nextRevision = snapshot.workingSetRevision + 1;
-  const editBullet: Bullet = {
-    bulletId: `b-edit-${nextRevision}-${unitId}`,
-    kind: "edit",
+  const editBullet = decorateBullet({
+    bulletId: `b-edit-${nextRevision}-${editedUnit.unitId}`,
+    type: "edit",
     status: "new",
-    anchorUnitId: unitId,
-    anchorText: trimmedMarkdown.slice(0, 28),
-    title: "Edit",
-    body: "Local edit committed from the manuscript surface.",
-    author: "You",
-    railY: railYForUnit(editedUnit, documentUnits, snapshot.activeBullets),
-  };
+    unitId: isDelete ? targetUnit.unitId : editedUnit.unitId,
+    queueOrder: snapshot.activeBullets.length,
+    createdAt: new Date().toISOString(),
+    beforeText: targetUnit.markdown,
+    afterText: trimmedMarkdown,
+  }, nextUnits, snapshot.activeBullets);
 
   return {
     ...snapshot,
-    title: editedUnit.type === "title" ? editedUnit.text : snapshot.title,
+    title: selectDocumentTitle(nextUnits, snapshot.title),
     workingSetRevision: nextRevision,
-    currentContent: buildContent(documentUnits),
-    documentUnits,
+    currentContent: nextContent,
+    documentUnits: nextUnits,
     activeBullets: [...snapshot.activeBullets, editBullet],
   };
 }
@@ -209,22 +185,16 @@ export function createDocumentUnitComment(
   }
 
   const nextRevision = snapshot.workingSetRevision + 1;
-  const commentBullet: Bullet = {
+  const commentBullet = decorateBullet({
     bulletId: `b-comment-${nextRevision}-${unitId}`,
-    kind: "comment",
+    type: "comment",
     status: "new",
-    anchorUnitId: unitId,
-    anchorText: trimmedAnchorText.slice(0, 80),
+    unitId,
+    queueOrder: snapshot.activeBullets.length,
+    createdAt: new Date().toISOString(),
+    anchorTextSnapshot: trimmedAnchorText.slice(0, 500),
     content: trimmedContent,
-    title: "Comment",
-    body: trimmedContent,
-    author: "You",
-    railY: railYForUnit(
-      targetUnit,
-      snapshot.documentUnits,
-      snapshot.activeBullets,
-    ),
-  };
+  }, snapshot.documentUnits, snapshot.activeBullets);
 
   return {
     ...snapshot,
@@ -304,7 +274,11 @@ export function completeProceeding(
     proceeding: null,
     activeReviewChangeSet:
       changeSet ??
-      buildDefaultReviewChangeSet(`changeset-${snapshot.workingSetRevision}`),
+      buildDefaultReviewChangeSet(
+        `changeset-${snapshot.workingSetRevision}`,
+        snapshot.workingSetRevision,
+        snapshot.baseVersionId ?? snapshot.currentVersionId,
+      ),
   };
 }
 
@@ -342,10 +316,18 @@ export function resolveReviewChange(
   changeId: string,
   status: "accepted" | "rejected",
 ): SessionSnapshot {
+  return resolveReviewChangeWithSettlement(snapshot, changeId, status).snapshot;
+}
+
+export function resolveReviewChangeWithSettlement(
+  snapshot: SessionSnapshot,
+  changeId: string,
+  status: "accepted" | "rejected",
+): ReviewSettlementResult {
   const changeSet = snapshot.activeReviewChangeSet;
 
   if (!changeSet) {
-    return snapshot;
+    return { snapshot, settlement: null };
   }
 
   const targetChange = changeSet.changes.find(
@@ -353,27 +335,30 @@ export function resolveReviewChange(
   );
 
   if (!targetChange || targetChange.status !== "pending") {
-    return snapshot;
+    return { snapshot, settlement: null };
   }
 
-  const documentUnits =
+  const nextDocumentState =
     status === "accepted"
-      ? applyAcceptedChange(snapshot.documentUnits, targetChange)
-      : snapshot.documentUnits;
+      ? applyAcceptedChange(snapshot.currentContent, snapshot.documentUnits, targetChange)
+      : {
+          currentContent: snapshot.currentContent,
+          documentUnits: snapshot.documentUnits,
+        };
   const changes = changeSet.changes.map((change) =>
     change.changeId === changeId ? { ...change, status } : change,
   );
 
   return resolveReviewIfSettled({
     ...snapshot,
-    documentUnits,
-    currentContent: buildContent(documentUnits),
+    currentContent: nextDocumentState.currentContent,
+    documentUnits: nextDocumentState.documentUnits,
     activeReviewChangeSet: {
       ...changeSet,
       changes,
       status: changes.some((change) => change.status === "pending")
         ? changeSet.status
-        : "settled",
+        : "resolved",
     },
   });
 }
@@ -382,10 +367,17 @@ export function resolveAllReviewChanges(
   snapshot: SessionSnapshot,
   status: "accepted" | "rejected",
 ): SessionSnapshot {
+  return resolveAllReviewChangesWithSettlement(snapshot, status).snapshot;
+}
+
+export function resolveAllReviewChangesWithSettlement(
+  snapshot: SessionSnapshot,
+  status: "accepted" | "rejected",
+): ReviewSettlementResult {
   const changeSet = snapshot.activeReviewChangeSet;
 
   if (!changeSet) {
-    return snapshot;
+    return { snapshot, settlement: null };
   }
 
   const pendingChanges = changeSet.changes.filter(
@@ -396,92 +388,129 @@ export function resolveAllReviewChanges(
     return resolveReviewIfSettled(snapshot);
   }
 
-  const documentUnits =
+  const nextDocumentState =
     status === "accepted"
-      ? pendingChanges.reduce(
-          (units, change) => applyAcceptedChange(units, change),
-          snapshot.documentUnits,
-        )
-      : snapshot.documentUnits;
+      ? {
+          currentContent: changeSet.candidateContent,
+          documentUnits: documentUnitsFromMarkdown(changeSet.candidateContent),
+        }
+      : {
+          currentContent: snapshot.currentContent,
+          documentUnits: snapshot.documentUnits,
+        };
   const changes = changeSet.changes.map((change) =>
     change.status === "pending" ? { ...change, status } : change,
   );
 
   return resolveReviewIfSettled({
     ...snapshot,
-    documentUnits,
-    currentContent: buildContent(documentUnits),
+    currentContent: nextDocumentState.currentContent,
+    documentUnits: nextDocumentState.documentUnits,
     activeReviewChangeSet: {
       ...changeSet,
       changes,
-      status: "settled",
+      status: "resolved",
     },
   });
 }
 
 export function applyAcceptedChange(
+  currentContent: string,
   documentUnits: DocumentUnit[],
   change: Change,
-): DocumentUnit[] {
-  if (change.kind !== "replace" || !change.before || !change.after) {
-    return documentUnits;
-  }
-
-  return documentUnits.map((unit) => {
-    if (
-      unit.unitId !== change.unitId ||
-      !unit.markdown.includes(change.before!)
-    ) {
-      return unit;
-    }
-
-    return updateDocumentUnitMarkdown(
-      unit,
-      unit.markdown.replace(change.before!, change.after!),
-    );
-  });
+): {
+  currentContent: string;
+  documentUnits: DocumentUnit[];
+} {
+  return applyChangeToMarkdown(currentContent, documentUnits, change);
 }
 
 export function resolveReviewIfSettled(
   snapshot: SessionSnapshot,
-): SessionSnapshot {
+): ReviewSettlementResult {
   const changeSet = snapshot.activeReviewChangeSet;
 
   if (
     !changeSet ||
     changeSet.changes.some((change) => change.status === "pending")
   ) {
-    return snapshot;
+    return { snapshot, settlement: null };
   }
 
-  const nextVersionNumber = snapshot.versionHistory.length + 1;
-  const nextVersionId = `v${nextVersionNumber}`;
-
-  return {
+  const acceptedChanges = changeSet.changes.filter(
+    (change) => change.status === "accepted",
+  );
+  const settledAt = new Date().toISOString();
+  const baseSnapshot: SessionSnapshot = {
     ...snapshot,
+    title: selectDocumentTitle(snapshot.documentUnits, snapshot.title),
     sessionStatus: "active",
     activeReviewChangeSet: null,
     activeBullets: [],
-    currentVersionId: nextVersionId,
+    proceeding: null,
     workingSetRevision: snapshot.workingSetRevision + 1,
-    versionHistory: [
-      ...snapshot.versionHistory,
-      {
-        versionId: nextVersionId,
-        label: nextVersionId,
-        createdAt: new Date().toISOString(),
-        summary: "审阅结算后生成的新版本。",
+  };
+
+  if (acceptedChanges.length === 0) {
+    return {
+      snapshot: baseSnapshot,
+      settlement: {
+        reviewResolved: {
+          reviewChangeSetId: changeSet.reviewChangeSetId,
+          resolution: "all_rejected",
+        },
       },
-    ],
+    };
+  }
+
+  const nextVersionNumber =
+    Math.max(
+      0,
+      ...snapshot.versionHistory.map((version) => version.versionNumber),
+    ) + 1;
+  const nextVersionId = `v${nextVersionNumber}`;
+  const version: VersionSummaryItem = {
+    versionId: nextVersionId,
+    versionNumber: nextVersionNumber,
+    label: nextVersionId,
+    createdAt: settledAt,
+    summary: "审阅结算后生成的新版本。",
+  };
+  const historyVersion: HistoryVersionPayload = {
+    versionId: nextVersionId,
+    versionNumber: nextVersionNumber,
+    createdAt: settledAt,
+    content: snapshot.currentContent,
+    summary: version.summary,
+    acceptedChangeSetRef: changeSet.reviewChangeSetId,
+  };
+
+  return {
+    snapshot: {
+      ...baseSnapshot,
+      baseVersionId: nextVersionId,
+      currentVersionId: nextVersionId,
+      versionHistory: [...snapshot.versionHistory, version],
+    },
+    settlement: {
+      reviewResolved: {
+        reviewChangeSetId: changeSet.reviewChangeSetId,
+        resolution: "version_created",
+        versionId: nextVersionId,
+      },
+      historyVersion,
+      version,
+    },
   };
 }
 
 export function restoreVersionSnapshot(
   snapshot: SessionSnapshot,
   versionId: string,
-  documentUnits: DocumentUnit[],
   content: string,
 ): SessionSnapshot {
+  const documentUnits = documentUnitsFromMarkdown(content);
+
   return {
     ...snapshot,
     baseVersionId: versionId,
@@ -497,21 +526,39 @@ export function restoreVersionSnapshot(
 }
 
 export function buildDefaultReviewChangeSet(
-  changeSetId: string,
+  reviewChangeSetId: string,
+  sourceWorkingSetRevision: number,
+  baseVersionId?: string,
 ): ReviewChangeSet {
   return {
-    changeSetId,
+    reviewChangeSetId,
+    sourceWorkingSetRevision,
+    candidateContent: "",
+    baseVersionId,
     mode: "flow",
-    status: "ready",
+    status: "open",
     changes: [
       {
-        changeId: `${changeSetId}-change-1`,
+        changeId: `${reviewChangeSetId}-change-1`,
         unitId: "u-posture",
         kind: "replace",
+        startOffset: 0,
+        endOffset: "哪些地方需要追问".length,
+        beforeText: "哪些地方需要追问",
+        afterText: "哪些问题需要继续追问",
         status: "pending",
-        before: "哪些地方需要追问",
-        after: "哪些问题需要继续追问",
       },
     ],
   };
+}
+
+export interface ReviewSettlement {
+  reviewResolved: ReviewResolvedPayload;
+  historyVersion?: HistoryVersionPayload;
+  version?: VersionSummaryItem;
+}
+
+export interface ReviewSettlementResult {
+  snapshot: SessionSnapshot;
+  settlement: ReviewSettlement | null;
 }

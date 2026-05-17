@@ -1,0 +1,26 @@
+{
+  "name": "@blackboard/runtime",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "blackboard-runtime": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "pnpm --dir ../.. --filter @blackboard/backend build && pnpm --dir ../.. --filter @blackboard/host-adapter build && pnpm --dir ../.. --filter @blackboard/frontend build && tsc && node dist/buildRuntimeAssets.js",
+    "dev": "node --watch --import tsx/esm src/cli.ts",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "diff": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3"
+  }
+}

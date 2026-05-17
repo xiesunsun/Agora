@@ -70,6 +70,7 @@
 * 长时间驻留 blackboard session 内处理细粒度事件；
 * 直接维护 `subagent` 的本地工作区；
 * 在每次 `Proceed` 后亲自统合候选正文。
+* 手工将后续 blackboard 事件转写为普通聊天消息再发送给 `subagent`。
 
 ### 3.2 宿主
 
@@ -80,11 +81,19 @@
 * 让 `main agent` 启动一个原生 `subagent`；
 * 持久化该 `subagent` 的 `threadId`；
 * 通过 `Codex App Server` 对该 `threadId` 执行 `thread/read`、`thread/resume`、`turn/start` 与必要时的 `turn/steer`；
+* 在 `thread/start` / `thread/resume` 时向 `subagent` 注入当前会话的 `backendUrl`、`frontendUrl` 与 `workspaceRoot`；
 * 为该 `subagent` 提供私有会话目录；
 * 为当前 session 维护串行事件队列；
 * 每次只向该 `subagent thread` 交付一个当前事件；
 * 只有在收到 `turn/completed` 后，才允许交付下一个事件；
 * 在会话关闭后，将 `subagent` 的最终结果回传给 `main agent`。
+
+说明：
+
+* 这里的 `Codex App Server` / `turn/start(threadId=...)` 表示宿主控制面的概念能力；
+* 在实际 Codex 环境中，等价能力也可能通过 `spawn_agent`、`send_input`、`wait_agent`、agent 通知等宿主工具暴露；
+* 这些控制能力属于宿主层，不属于 blackboard backend 进程本身。
+* 在当前实现中，后续 blackboard 事件的 direct-to-thread 投递由 host-adapter 事件循环执行，而不是由 `main agent` 在普通聊天流中手工转发。
 
 宿主不负责：
 
@@ -286,6 +295,12 @@ V1 中，同一 blackboard session 只有一个活跃 `subagent`。
 
 启动回合结束前，`create_session` 必须完成，初始 `get_snapshot` 应完成。
 
+这里的“基于 handoff 生成首版 `sessionDocument.md`”默认意味着：
+
+* `main agent` 主要提供主题、目标、上下文、约束和成功标准；
+* `subagent` 负责把这些信息扩展成适合协作的首版文稿；
+* 除非人类明确要求以既定正文作为起点，否则不要求 `main agent` 预先写好整篇首稿。
+
 ### 6.2 `comment bullet` 回合
 
 当宿主交付的是单条 `comment bullet` 事件时，`subagent` 至少应完成：
@@ -400,4 +415,12 @@ close 回合结束前，`summary.md` 与 `close_session` 都是强制产物。
 * 收到 `turn/completed`，且强制工具动作已完成时，当前事件才视为 `handled`；
 * frontend 只消费 backend snapshot / event，不读取 `subagent` 私有文件；
 * backend 继续持有正式会话业务真相；
+
+这里的“通过 `Codex App Server` 直接控制”不应被误读为“backend 自己就能直接调到 Codex subagent”。
+
+更准确地说：
+
+* backend 负责产生 blackboard 业务事件与会话状态；
+* 宿主编排层负责把这些事件转成对 `subagent thread` 的实际控制调用；
+* 若当前环境提供的是 `send_input` 等宿主工具而不是字面上的 `turn/start(threadId=...)`，它们应被视为同一层能力的具体实现。
 * `subagent` 本地工作区继续只被视为私有、可重建、可失效的工作缓存。

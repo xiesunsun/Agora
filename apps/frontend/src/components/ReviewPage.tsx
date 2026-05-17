@@ -95,17 +95,15 @@ function ReviewChrome({
           PR Review
         </button>
       </div>
-      <div className="review-chrome-actions">
-        <button
-          type="button"
-          className="review-close-button"
-          aria-label="Close"
-        >
-          ×
-        </button>
-      </div>
+      <div className="review-chrome-actions" />
     </header>
   );
+}
+
+function formatEditTime(snapshot: SessionSnapshot): string {
+  const lastVersion = snapshot.versionHistory[snapshot.versionHistory.length - 1];
+  const date = lastVersion ? new Date(lastVersion.createdAt) : new Date();
+  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
 
 function FlowReview({
@@ -125,20 +123,18 @@ function FlowReview({
     <main className="flow-review-main">
       <article className="flow-review-paper">
         <header className="flow-review-heading">
-          <h1>{snapshot.title}</h1>
           <div>
             <span>{selectRevisionLabel(snapshot)}</span>
             <span>•</span>
-            <span>最后编辑于 14:20</span>
+            <span>最后编辑于 {formatEditTime(snapshot)}</span>
           </div>
         </header>
 
         <div className="review-document">
           {documentUnits
-            .filter((unit) => unit.type !== "title")
             .map((unit) => (
               <ReviewUnit
-                change={changeForUnit(changeSet, unit.unitId)}
+                changes={changeForUnit(changeSet, unit.unitId)}
                 key={unit.unitId}
                 unit={unit}
               />
@@ -179,16 +175,19 @@ function PrReview({
     (change) => change.status === "pending",
   );
   const focusedChange = pendingChanges[0] ?? changeSet.changes[0];
+  // For insert changes, unitId refers to the new unit which may not exist in base documentUnits
+  // Fall back to the nearest existing unit
   const targetIndex = documentUnits.findIndex(
     (unit) => unit.unitId === focusedChange?.unitId,
   );
+  const resolvedIndex = targetIndex >= 0 ? targetIndex : documentUnits.length - 1;
   const beforeUnits = contextualUnits(
-    documentUnits.slice(0, targetIndex),
-  ).slice(-2);
+    documentUnits.slice(0, resolvedIndex),
+  ).slice(-4);
   const afterUnits = contextualUnits(
-    documentUnits.slice(targetIndex + 1),
-  ).slice(0, 2);
-  const targetUnit = documentUnits[targetIndex];
+    documentUnits.slice(resolvedIndex + 1),
+  ).slice(0, 4);
+  const targetUnit = documentUnits[resolvedIndex];
 
   if (!focusedChange || !targetUnit) {
     return null;
@@ -238,8 +237,16 @@ function PrReview({
   );
 }
 
-function ReviewUnit({ change, unit }: { change?: Change; unit: DocumentUnit }) {
-  const content = inlineReviewContent(textForUnit(unit), change);
+function ReviewUnit({ change, changes, unit }: { change?: Change; changes?: Change[]; unit: DocumentUnit }) {
+  const allChanges = changes ?? (change ? [change] : []);
+  const prefixLen = unit.type === "title" || unit.type === "heading" || unit.type === "list_item" || unit.type === "blockquote"
+    ? unit.markdown.indexOf(unit.text)
+    : 0;
+  const displayMarkdown = prefixLen > 0 ? unit.markdown.slice(prefixLen) : unit.markdown;
+  const adjustedChanges = prefixLen > 0
+    ? allChanges.map((c) => ({ ...c, startOffset: c.startOffset - prefixLen, endOffset: c.endOffset - prefixLen })).filter((c) => c.startOffset >= 0)
+    : allChanges;
+  const content = inlineReviewContent(displayMarkdown, adjustedChanges);
 
   switch (unit.type) {
     case "title":
@@ -312,49 +319,63 @@ function ReviewUnit({ change, unit }: { change?: Change; unit: DocumentUnit }) {
 }
 
 function changeForUnit(changeSet: ReviewChangeSet, unitId: string) {
-  return changeSet.changes.find(
+  return changeSet.changes.filter(
     (change) => change.unitId === unitId && change.status === "pending",
   );
 }
 
 function contextualUnits(units: DocumentUnit[]) {
-  return units.filter((unit) =>
-    ["paragraph", "list_item", "blockquote"].includes(unit.type),
-  );
+  return units;
 }
 
-function inlineReviewContent(text: string, change?: Change): ReactNode {
-  if (
-    !change ||
-    change.status !== "pending" ||
-    change.kind !== "replace" ||
-    !change.before ||
-    !change.after ||
-    !text.includes(change.before)
-  ) {
-    return text;
-  }
-
-  const [prefix, ...rest] = text.split(change.before);
-  const suffix = rest.join(change.before);
-
-  return (
-    <>
-      {prefix}
-      <del>{change.before}</del>
-      <ins>{change.after}</ins>
-      {suffix}
-    </>
+function inlineReviewContent(text: string, changes: Change[]): ReactNode {
+  const pending = changes.filter(
+    (c) => c.status === "pending" && (c.kind === "replace" || c.kind === "delete") && c.beforeText,
   );
-}
-
-function textForUnit(unit: DocumentUnit): string {
-  switch (unit.type) {
-    case "code_block":
-      return unit.code;
-    case "table":
-      return unit.markdown;
-    default:
-      return unit.text;
+  if (pending.length === 0) {
+    // Check for insert-only changes
+    const inserts = changes.filter((c) => c.status === "pending" && c.kind === "insert");
+    if (inserts.length === 0) return text;
+    // Show text + appended inserts
+    return <>{text}{inserts.map((c) => <ins key={`ins-${c.changeId}`}>{c.afterText}</ins>)}</>;
   }
+
+  const sorted = [...pending].sort((a, b) => a.startOffset - b.startOffset);
+
+  // Validate offsets match beforeText — if any mismatch, fallback to whole-unit diff
+  const offsetsValid = sorted.every(
+    (c) => text.slice(c.startOffset, c.endOffset) === c.beforeText,
+  );
+  if (!offsetsValid) {
+    // Fallback: show entire unit as del + ins with candidate text
+    const fullAfter = sorted.reduce(
+      (t, c) => t.replace(c.beforeText, c.afterText),
+      text,
+    );
+    return <><del>{text}</del><ins>{fullAfter}</ins></>;
+  }
+
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+
+  for (const change of sorted) {
+    const before = text.slice(cursor, change.startOffset);
+    if (before) parts.push(before);
+    parts.push(<del key={`del-${change.changeId}`}>{change.beforeText}</del>);
+    if (change.afterText) {
+      parts.push(<ins key={`ins-${change.changeId}`}>{change.afterText}</ins>);
+    }
+    cursor = change.endOffset;
+  }
+
+  const tail = text.slice(cursor);
+  if (tail) parts.push(tail);
+
+  // Append any insert changes at the end
+  const inserts = changes.filter((c) => c.status === "pending" && c.kind === "insert");
+  for (const ins of inserts) {
+    parts.push(<ins key={`ins-${ins.changeId}`}>{ins.afterText}</ins>);
+  }
+
+  return <>{parts}</>;
 }

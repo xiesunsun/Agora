@@ -45,20 +45,14 @@ export function ProceedingOverlay({
           <span className="orbit-core" />
         </div>
         <h2>正在统合本轮修改</h2>
-        <p>
-          Agent 正在深度解析正文编辑与侧边批注，为您准备下一阶段的审阅建议。
+        <p className="proceeding-stage-label">
+          第 {safeStageIndex + 1}/3 步：{stageLabel}
         </p>
-        <div className="proceeding-count">
-          <strong>
-            {completedCount} / {totalCount}
-          </strong>
-          <span>{safeProgress >= 100 ? "已完成" : "处理中"}</span>
-        </div>
         <div className="proceeding-progress" aria-hidden="true">
           <span style={{ width: `${safeProgress}%` }} />
         </div>
-        <div className="proceeding-substage">
-          第 {safeStageIndex + 1}/3 步：{stageLabel}...
+        <div className="proceeding-count">
+          <span>批注处理进度：{completedCount} / {totalCount} {safeProgress >= 100 ? "✓" : ""}</span>
         </div>
       </div>
     </section>
