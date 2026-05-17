@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm --filter @blackboard/runtime build
+
+      - name: Test backend
+        run: pnpm --filter @blackboard/backend test
+
+      - name: Test frontend (unit only)
+        run: pnpm --filter @blackboard/frontend exec vitest run --exclude "tests/e2e/**"
+
+      - name: Pack runtime artifact
+        run: cd packages/blackboard-runtime && pnpm pack
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blackboard-runtime
+          path: packages/blackboard-runtime/blackboard-runtime-*.tgz
+
+  # Publish a GitHub Release when a version tag is pushed
+  release:
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build and pack
+        run: cd packages/blackboard-runtime && pnpm build && pnpm pack
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/blackboard-runtime/blackboard-runtime-*.tgz
+          generate_release_notes: true
