@@ -10,7 +10,7 @@
     "blackboard-runtime": "dist/cli.js"
   },
   "scripts": {
-    "build": "pnpm --dir ../.. --filter @blackboard/backend build && pnpm --dir ../.. --filter @blackboard/host-adapter build && pnpm --dir ../.. --filter @blackboard/frontend build && tsc && node dist/buildRuntimeAssets.js",
+    "build": "pnpm --dir ../.. --filter @blackboard/document-model build && pnpm --dir ../.. --filter @blackboard/review-model build && pnpm --dir ../.. --filter @blackboard/backend build && pnpm --dir ../.. --filter @blackboard/host-adapter build && pnpm --dir ../.. --filter @blackboard/frontend build && tsc && node dist/buildRuntimeAssets.js",
     "dev": "node --watch --import tsx/esm src/cli.ts",
     "start": "node dist/cli.js",
     "typecheck": "tsc --noEmit"
