@@ -6,7 +6,7 @@ It keeps the existing embedded backend, frontend, and host-adapter architecture,
 ## Install
 
 ```bash
-npm install -g agora
+npm install -g @xiesunsun/agora
 ```
 
 The package also ships the legacy `blackboard-runtime` binary as a compatibility alias, but the primary documented command is `agora`.

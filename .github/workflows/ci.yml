@@ -39,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: agora
-          path: packages/blackboard-runtime/agora-*.tgz
+          path: packages/blackboard-runtime/xiesunsun-agora-*.tgz
 
   # Publish a GitHub Release when a version tag is pushed
   release:
@@ -66,7 +66,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/blackboard-runtime/agora-*.tgz
+          files: packages/blackboard-runtime/xiesunsun-agora-*.tgz
           generate_release_notes: true
 
   publish-npm:

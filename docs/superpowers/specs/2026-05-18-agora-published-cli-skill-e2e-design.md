@@ -80,7 +80,7 @@ User-visible entrypoints must not require users to understand the old names. Int
 Agora should be published as a normal npm package intended for global installation via:
 
 ```bash
-npm install -g agora
+npm install -g @xiesunsun/agora
 ```
 
 or

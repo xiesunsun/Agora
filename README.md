@@ -57,7 +57,7 @@ Agora 当前通过 Codex 的宿主执行链路，使用 **新的 worker thread**
 Agora 不是一个封闭 SaaS，而是以 **CLI + Skill + 开源源码** 的方式交付。当前对外安装主路径是：
 
 ```bash
-npm install -g agora
+npm install -g @xiesunsun/agora
 agora init-codex --force
 agora doctor
 ```
@@ -130,7 +130,7 @@ flowchart LR
 ### 1. 发布式安装（面向外部用户）
 
 ```bash
-npm install -g agora
+npm install -g @xiesunsun/agora
 agora init-codex --force
 agora doctor
 ```

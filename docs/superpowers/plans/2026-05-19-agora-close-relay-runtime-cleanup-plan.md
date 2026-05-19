@@ -255,7 +255,7 @@ pnpm --filter ./packages/blackboard-runtime pack --pack-destination /tmp/agora-p
 Run:
 
 ```bash
-npm install -g /tmp/agora-pack-test/agora-0.1.0.tgz
+npm install -g /tmp/agora-pack-test/xiesunsun-agora-0.1.0.tgz
 rm -rf ~/.codex/skills/blackboard-collaboration
 mkdir -p ~/.codex/skills
 cp -R /Users/ssunxie/code/whiteBoard/packages/blackboard-runtime/dist/codex/skills/blackboard-collaboration ~/.codex/skills/

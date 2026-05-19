@@ -141,7 +141,7 @@ Update `packages/blackboard-runtime/package.json` to:
 
 ```json
 {
-  "name": "agora",
+  "name": "@xiesunsun/agora",
   "private": false,
   "version": "0.1.0",
   "files": ["dist", "README.md"],
@@ -185,13 +185,13 @@ Run:
 ```bash
 pnpm --filter ./packages/blackboard-runtime test -- publicMetadata.test.ts
 pnpm --filter ./packages/blackboard-runtime pack --pack-destination /tmp/agora-pack-test
-tar -tf /tmp/agora-pack-test/agora-0.1.0.tgz | rg "dist/cli.js|README.md|package.json"
+tar -tf /tmp/agora-pack-test/xiesunsun-agora-0.1.0.tgz | rg "dist/cli.js|README.md|package.json"
 ```
 
 Expected:
 
 - `publicMetadata.test.ts` passes
-- tarball name is `agora-0.1.0.tgz`
+- tarball name is `xiesunsun-agora-0.1.0.tgz`
 - tarball contains `dist/cli.js`
 
 - [ ] **Step 6: Commit**
@@ -612,7 +612,7 @@ Ensure the root `README.md` explains:
 Run:
 
 ```bash
-rg -n "agora init-codex|agora doctor|npm install -g agora|whiteBoard|@blackboard" README.md packages/blackboard-runtime/README.md docs/05-agent/Agora-Published-E2E-Runbook.md docs/Developer-Guide.md
+rg -n "agora init-codex|agora doctor|npm install -g @xiesunsun/agora|whiteBoard|@blackboard" README.md packages/blackboard-runtime/README.md docs/05-agent/Agora-Published-E2E-Runbook.md docs/Developer-Guide.md
 ```
 
 Expected: the published install flow is documented consistently.
