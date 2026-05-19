@@ -7,8 +7,9 @@ import { handleStaticRequest } from "./staticServer.js";
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3001;
 const FRONTEND_DIST_DIR = process.env.FRONTEND_DIST_DIR;
 
-// Seed demo session on startup
-getOrCreateDemoSession();
+if (isDemoSessionEnabled()) {
+  getOrCreateDemoSession();
+}
 
 const server = createServer((req, res) => {
   // CORS preflight
@@ -46,3 +47,9 @@ server.listen(PORT, () => {
     console.log(`Blackboard frontend served from ${FRONTEND_DIST_DIR}`);
   }
 });
+
+function isDemoSessionEnabled(): boolean {
+  return ["1", "true", "yes", "on"].includes(
+    (process.env.BLACKBOARD_ENABLE_DEMO_SESSION ?? "").toLowerCase(),
+  );
+}

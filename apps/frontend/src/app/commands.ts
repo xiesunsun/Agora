@@ -19,11 +19,15 @@ export function createCommentCommand(
   unitId: string,
   anchorText: string,
   content: string,
+  anchorStartOffset?: number,
+  anchorEndOffset?: number,
 ) {
   return apiClient.sendCommand("bullet.comment.create", {
     unitId,
     content,
     anchorTextSnapshot: anchorText,
+    anchorStartOffset,
+    anchorEndOffset,
   });
 }
 

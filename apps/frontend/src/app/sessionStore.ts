@@ -83,6 +83,8 @@ type SessionAction =
   | {
       type: "fixture.document_unit.comment.create";
       anchorText: string;
+      anchorStartOffset?: number;
+      anchorEndOffset?: number;
       content: string;
       unitId: string;
     };
@@ -100,7 +102,9 @@ function sessionReducer(
       return {
         ...state,
         fixtureKey: action.fixtureKey,
-        historyPreviewVersionId: null,
+        historyPreviewVersionId: action.fixtureKey === "history-preview"
+          ? (fixtures[action.fixtureKey]?.currentVersionId ?? null)
+          : null,
         lastEvent: null,
         reviewMode: reviewModeForFixture(action.fixtureKey),
         runtimeMode: { kind: "fixture" },
@@ -254,6 +258,8 @@ function sessionReducer(
           action.unitId,
           action.anchorText,
           action.content,
+          action.anchorStartOffset,
+          action.anchorEndOffset,
         ),
       };
     default:
@@ -364,14 +370,12 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
       completeProceeding: () =>
         dispatch({ type: "fixture.session.proceed.complete" }),
       previewCurrentHistory: () => {
-        const currentVersionIndex = state.snapshot.versionHistory.findIndex(
-          (version) => version.versionId === state.snapshot.currentVersionId,
-        );
-        const versionId =
-          state.snapshot.versionHistory[Math.max(0, currentVersionIndex - 1)]
-            ?.versionId ?? state.snapshot.currentVersionId;
+        const versionId = state.snapshot.currentVersionId
+          ?? state.snapshot.versionHistory[state.snapshot.versionHistory.length - 1]?.versionId;
 
-        loadHistoryPreview(versionId);
+        if (versionId) {
+          loadHistoryPreview(versionId);
+        }
       },
       previewHistoryVersion: loadHistoryPreview,
       backToActive: () => dispatch({ type: "history.back_to_active" }),
@@ -473,6 +477,8 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
         unitId: string,
         anchorText: string,
         content: string,
+        anchorStartOffset?: number,
+        anchorEndOffset?: number,
       ) =>
         runCommand(
           () =>
@@ -481,11 +487,15 @@ export function useSessionStore(initialFixture: FixtureKey = "active") {
               unitId,
               anchorText,
               content,
+              anchorStartOffset,
+              anchorEndOffset,
             ),
           {
             type: "fixture.document_unit.comment.create",
             unitId,
             anchorText,
+            anchorStartOffset,
+            anchorEndOffset,
             content,
           },
         ),

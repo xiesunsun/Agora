@@ -10,6 +10,12 @@ importers:
 
   apps/backend:
     dependencies:
+      '@blackboard/document-model':
+        specifier: workspace:*
+        version: link:../../packages/document-model
+      '@blackboard/review-model':
+        specifier: workspace:*
+        version: link:../../packages/review-model
       '@blackboard/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -35,6 +41,12 @@ importers:
 
   apps/frontend:
     dependencies:
+      '@blackboard/document-model':
+        specifier: workspace:*
+        version: link:../../packages/document-model
+      '@blackboard/review-model':
+        specifier: workspace:*
+        version: link:../../packages/review-model
       '@blackboard/schema':
         specifier: workspace:*
         version: link:../../packages/schema
@@ -104,6 +116,24 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+      vitest:
+        specifier: 3.1.4
+        version: 3.1.4(@types/node@22.19.18)(tsx@4.21.0)
+
+  packages/document-model:
+    dependencies:
+      '@blackboard/schema':
+        specifier: workspace:*
+        version: link:../schema
+
+  packages/review-model:
+    dependencies:
+      '@blackboard/document-model':
+        specifier: workspace:*
+        version: link:../document-model
+      '@blackboard/schema':
+        specifier: workspace:*
+        version: link:../schema
 
   packages/schema: {}
 

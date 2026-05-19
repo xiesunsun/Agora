@@ -63,10 +63,10 @@ export function DocumentUnitEditor({
       />
       <div className="document-unit-editor-actions">
         <button type="button" onClick={onCancel}>
-          Cancel
+          取消
         </button>
         <button type="button" onClick={handleCommit}>
-          Save
+          保存
         </button>
       </div>
     </div>

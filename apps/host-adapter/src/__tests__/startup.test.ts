@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test, vi } from "vitest";
@@ -6,22 +6,58 @@ import { bootstrapSession } from "../startup.js";
 import type { HostControls } from "../types.js";
 
 describe("bootstrapSession", () => {
-  function withWorkspace<T>(fn: (workspaceRoot: string) => Promise<T>): Promise<T> {
-    const workspaceRoot = mkdtempSync(path.join(tmpdir(), "blackboard-startup-test-"));
-    const previous = process.env.BLACKBOARD_WORKSPACE_ROOT;
-    process.env.BLACKBOARD_WORKSPACE_ROOT = workspaceRoot;
-    return fn(workspaceRoot).finally(() => {
+  function withWorkspace<T>(fn: (workerWorkspaceParent: string) => Promise<T>): Promise<T> {
+    const workerWorkspaceParent = mkdtempSync(path.join(tmpdir(), "blackboard-startup-test-"));
+    const previous = process.env.BLACKBOARD_WORKER_WORKSPACE;
+    const previousSessionWorkspace = process.env.BLACKBOARD_SESSION_WORKSPACE;
+    process.env.BLACKBOARD_WORKER_WORKSPACE = workerWorkspaceParent;
+    delete process.env.BLACKBOARD_SESSION_WORKSPACE;
+    return fn(workerWorkspaceParent).finally(() => {
       if (previous === undefined) {
-        delete process.env.BLACKBOARD_WORKSPACE_ROOT;
+        delete process.env.BLACKBOARD_WORKER_WORKSPACE;
       } else {
-        process.env.BLACKBOARD_WORKSPACE_ROOT = previous;
+        process.env.BLACKBOARD_WORKER_WORKSPACE = previous;
       }
-      rmSync(workspaceRoot, { recursive: true, force: true });
+      if (previousSessionWorkspace === undefined) {
+        delete process.env.BLACKBOARD_SESSION_WORKSPACE;
+      } else {
+        process.env.BLACKBOARD_SESSION_WORKSPACE = previousSessionWorkspace;
+      }
+      rmSync(workerWorkspaceParent, { recursive: true, force: true });
     });
   }
 
   test("spawns a worker, parses startup output, and persists threadId", async () => {
     await withWorkspace(async () => {
+      const handoffFilePath = path.join(tmpdir(), `blackboard-handoff-${Date.now()}.md`);
+      writeFileSync(
+        handoffFilePath,
+        [
+          "## Role",
+          "You are the Blackboard Subagent for this session.",
+          "",
+          "## Task Goal",
+          "Deliver a polished draft.",
+          "",
+          "## Why Blackboard",
+          "The user wants live collaboration.",
+          "",
+          "## Context",
+          "Unique handoff context that should not be inlined.",
+          "",
+          "## Initial Content",
+          "Draft from the brief.",
+          "",
+          "## Success Criteria",
+          "A usable draft exists.",
+          "",
+          "## Startup Contract",
+          "Create the session and return the URL.",
+          "",
+          "## Return Contract",
+          "Return the final summary.",
+        ].join("\n"),
+      );
       const client = {
         getHealth: vi.fn().mockResolvedValue({
           backendUrl: "http://localhost:3001",
@@ -42,7 +78,7 @@ describe("bootstrapSession", () => {
         }),
       };
 
-      const info = await bootstrapSession(client as never, host);
+      const info = await bootstrapSession(client as never, host, handoffFilePath);
 
       expect(info).toEqual({
         sessionId: "session-123",
@@ -52,34 +88,23 @@ describe("bootstrapSession", () => {
       expect(client.setThread).toHaveBeenCalledWith("session-123", "thread-123");
       expect(host.spawnAgent).toHaveBeenCalledWith(
         expect.stringContaining(
-          "使用 blackboard-runtime create-session 创建一个新的 blackboard session",
+          `handoffFilePath: ${handoffFilePath}`,
         ),
       );
       expect(host.spawnAgent).toHaveBeenCalledWith(
         expect.stringContaining(
-          "使用 blackboard-runtime get-snapshot 获取初始快照并写入 sessionDocument.md",
+          "Read handoffFilePath before doing any drafting work.",
         ),
       );
-      expect(host.spawnAgent).toHaveBeenCalledWith(
-        expect.stringContaining("frontendUrl: http://localhost:5173?sessionId=<sessionId>"),
+      expect(host.spawnAgent).not.toHaveBeenCalledWith(
+        expect.stringContaining("Unique handoff context that should not be inlined."),
       );
+      rmSync(handoffFilePath, { force: true });
     });
   });
 
   test("falls back to structured create-session output when worker text omits sessionId", async () => {
-    await withWorkspace(async (workspaceRoot) => {
-      const startupArtifactsDir = path.join(workspaceRoot, "sessions", "startup-temp");
-      const createSessionResultFile = path.join(startupArtifactsDir, "create-session-result.json");
-      mkdirSync(startupArtifactsDir, { recursive: true });
-      writeFileSync(
-        createSessionResultFile,
-        JSON.stringify({
-          ok: true,
-          sessionId: "session-structured",
-          frontendUrl: "http://localhost:5173?sessionId=session-structured",
-        }),
-      );
-
+    await withWorkspace(async () => {
       const client = {
         getHealth: vi.fn().mockResolvedValue({
           backendUrl: "http://localhost:3001",
@@ -88,7 +113,20 @@ describe("bootstrapSession", () => {
         setThread: vi.fn().mockResolvedValue(undefined),
       };
       const host: HostControls = {
-        spawnAgent: vi.fn().mockResolvedValue({ threadId: "thread-123" }),
+        spawnAgent: vi.fn().mockImplementation(async (prompt: string) => {
+          const match = /(\S*create-session-result\.json)/.exec(prompt);
+          if (!match) throw new Error("prompt did not include create-session result path");
+          mkdirSync(path.dirname(match[1]!), { recursive: true });
+          writeFileSync(
+            match[1]!,
+            JSON.stringify({
+              ok: true,
+              sessionId: "session-structured",
+              frontendUrl: "http://localhost:5173?sessionId=session-structured",
+            }),
+          );
+          return { threadId: "thread-123" };
+        }),
         sendInput: vi.fn(),
         waitAgent: vi.fn().mockResolvedValue({
           status: "completed",
@@ -107,7 +145,7 @@ describe("bootstrapSession", () => {
   });
 
   test("fails when the worker output does not include sessionId and persists raw startup output", async () => {
-    await withWorkspace(async (workspaceRoot) => {
+    await withWorkspace(async (workerWorkspaceParent) => {
       const client = {
         getHealth: vi.fn().mockResolvedValue({
           backendUrl: "http://localhost:3001",
@@ -129,18 +167,57 @@ describe("bootstrapSession", () => {
       );
       expect(client.setThread).not.toHaveBeenCalled();
 
-      const outputFile = path.join(
-        workspaceRoot,
-        "sessions",
-        "startup-temp",
-        "startup-turn-output.txt",
-      );
-      expect(existsSync(outputFile)).toBe(true);
-      expect(readFileSync(outputFile, "utf8")).toContain("frontendUrl:");
+      const [sessionWorkspace] = readdirSync(workerWorkspaceParent)
+        .filter((entry) => entry.startsWith("session-"))
+        .map((entry) => path.join(workerWorkspaceParent, entry));
+      expect(sessionWorkspace).toBeDefined();
+      const sessionsDir = path.join(sessionWorkspace!, "sessions");
+      const [outputFile] = readdirSync(sessionsDir)
+        .filter((entry) => entry.startsWith("startup-"))
+        .map((entry) => path.join(sessionsDir, entry, "startup-turn-output.txt"));
+      expect(outputFile).toBeDefined();
+      expect(existsSync(outputFile!)).toBe(true);
+      expect(readFileSync(outputFile!, "utf8")).toContain("frontendUrl:");
     });
   });
 
-  test("rejects incomplete main-agent handoff prompts", async () => {
+  test("does not create startup artifacts in the invoking cwd", async () => {
+    await withWorkspace(async () => {
+      const invokingCwd = mkdtempSync(path.join(tmpdir(), "blackboard-invoking-cwd-"));
+      const previousCwd = process.cwd();
+      try {
+        process.chdir(invokingCwd);
+        const client = {
+          getHealth: vi.fn().mockResolvedValue({
+            backendUrl: "http://localhost:3001",
+            frontendUrl: "http://localhost:5173",
+          }),
+          setThread: vi.fn().mockResolvedValue(undefined),
+        };
+        const host: HostControls = {
+          spawnAgent: vi.fn().mockResolvedValue({ threadId: "thread-123" }),
+          sendInput: vi.fn(),
+          waitAgent: vi.fn().mockResolvedValue({
+            status: "completed",
+            outputText: [
+              "sessionId: session-123",
+              "frontendUrl: http://localhost:5173?sessionId=session-123",
+              "sessionStatus: active",
+            ].join("\n"),
+          }),
+        };
+
+        await bootstrapSession(client as never, host);
+
+        expect(existsSync(path.join(invokingCwd, "sessions"))).toBe(false);
+      } finally {
+        process.chdir(previousCwd);
+        rmSync(invokingCwd, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test("falls back to the bootstrap-only prompt when no handoff file path is provided", async () => {
     const client = {
       getHealth: vi.fn().mockResolvedValue({
         backendUrl: "http://localhost:3001",
@@ -149,14 +226,21 @@ describe("bootstrapSession", () => {
       setThread: vi.fn().mockResolvedValue(undefined),
     };
     const host: HostControls = {
-      spawnAgent: vi.fn(),
+      spawnAgent: vi.fn().mockResolvedValue({ threadId: "thread-123" }),
       sendInput: vi.fn(),
-      waitAgent: vi.fn(),
+      waitAgent: vi.fn().mockResolvedValue({
+        status: "completed",
+        outputText: [
+          "sessionId: session-123",
+          "frontendUrl: http://localhost:5173?sessionId=session-123",
+          "sessionStatus: active",
+        ].join("\n"),
+      }),
     };
 
-    await expect(
-      bootstrapSession(client as never, host, "## Role\nOnly one section"),
-    ).rejects.toThrow(/missing required section/);
-    expect(host.spawnAgent).not.toHaveBeenCalled();
+    await bootstrapSession(client as never, host);
+    expect(host.spawnAgent).toHaveBeenCalledWith(
+      expect.stringContaining("你是一个 blackboard-worker subagent。"),
+    );
   });
 });

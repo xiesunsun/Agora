@@ -232,6 +232,36 @@ describe("resolveAllReviewChangesWithSettlement", () => {
     expect(r2.settlement?.reviewResolved.resolution).toBe("version_created");
   });
 
+  test("mixed: reject first then accept all remaining preserves rejected content", () => {
+    const content = "# T\n\n段落一。\n\n段落二。";
+    const units = documentUnitsFromMarkdown(content);
+    const candidate = "# T\n\n段落一修改。\n\n段落二修改。";
+    const cs = buildReviewChangeSetFromCandidate("cs", 1, "v1", content, candidate, units);
+
+    const base: SessionSnapshot = {
+      sessionId: "test",
+      sessionStatus: "reviewing",
+      title: "T",
+      baseVersionId: "v1",
+      currentVersionId: "v1",
+      workingSetRevision: 1,
+      currentContent: content,
+      documentUnits: units,
+      activeBullets: [],
+      activeReviewChangeSet: cs,
+      proceeding: null,
+      versionHistory: [{ versionId: "v1", versionNumber: 1, createdAt: "2026-01-01T00:00:00Z" }],
+    };
+
+    const rejected = resolveReviewChangeWithSettlement(base, cs.changes[0].changeId, "rejected");
+    const acceptedRemaining = resolveAllReviewChangesWithSettlement(rejected.snapshot, "accepted");
+
+    expect(acceptedRemaining.snapshot.currentContent).toContain("段落一。");
+    expect(acceptedRemaining.snapshot.currentContent).not.toContain("段落一修改。");
+    expect(acceptedRemaining.snapshot.currentContent).toContain("段落二修改。");
+    expect(acceptedRemaining.settlement?.reviewResolved.resolution).toBe("version_created");
+  });
+
   test("version number increments correctly", () => {
     const snap = makeReviewingSnapshot();
     const result = resolveAllReviewChangesWithSettlement(snap, "accepted");
@@ -243,8 +273,8 @@ describe("resolveAllReviewChangesWithSettlement", () => {
 
 // ─── Bug fix regression tests ─────────────────────────────────────────────────
 
-describe("Bug fix: accept-all uses candidateContent directly (not sequential offset apply)", () => {
-  test("accept-all produces content equal to candidateContent, not a drift-corrupted version", () => {
+describe("Bug fix: accept-all applies pending changes without overwriting settled rejections", () => {
+  test("accept-all produces candidate content when every change is still pending", () => {
     // Simulate a structural rewrite: all units changed (like subagent rewrote the whole doc)
     const base = "# 标题\n\n第一段原文内容比较长，包含很多字。\n\n第二段原文内容也比较长。\n\n第三段原文。";
     const candidate = "# 标题\n\n第一段已经被修改成新内容。\n\n第二段也被修改了。\n\n第三段同样修改。";
@@ -270,11 +300,10 @@ describe("Bug fix: accept-all uses candidateContent directly (not sequential off
     };
 
     const result = resolveAllReviewChangesWithSettlement(snap, "accepted");
-    // The final content must exactly equal the candidate, not a drift-corrupted version
     expect(result.snapshot.currentContent).toBe(candidate);
   });
 
-  test("accept-all with single change also produces candidateContent", () => {
+  test("accept-all with single pending change produces candidate content", () => {
     const base = "# 标题\n\n原文段落。";
     const candidate = "# 标题\n\n修改后段落。";
     const units = documentUnitsFromMarkdown(base);

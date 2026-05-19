@@ -15,8 +15,6 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { getSession, enqueueDispatchEvent } from "./sessionStore.js";
 
-const QUEUE_DIR = join(process.env.HOME ?? process.env.USERPROFILE ?? "~", ".blackboard", "events");
-
 export type DispatchableEventType =
   | "bullet.created"
   | "proceed.started"
@@ -214,11 +212,22 @@ function appendEventData(prose: string, data: Record<string, unknown>): string {
 }
 
 function appendToFile(sessionId: string, entry: object): void {
+  if (!isEventsLogEnabled()) return;
   try {
-    mkdirSync(QUEUE_DIR, { recursive: true });
-    const file = join(QUEUE_DIR, `${sessionId}.jsonl`);
+    const queueDir = getEventsDir();
+    mkdirSync(queueDir, { recursive: true });
+    const file = join(queueDir, `${sessionId}.jsonl`);
     appendFileSync(file, JSON.stringify(entry) + "\n");
   } catch {
     // Non-fatal
   }
+}
+
+function isEventsLogEnabled(): boolean {
+  return ["1", "true", "yes", "on"].includes((process.env.BLACKBOARD_EVENTS_LOG_ENABLED ?? "").toLowerCase());
+}
+
+function getEventsDir(): string {
+  return process.env.BLACKBOARD_EVENTS_DIR
+    ?? join(process.env.XDG_STATE_HOME ?? join(process.env.HOME ?? process.env.USERPROFILE ?? "~", ".local", "state"), "blackboard", "events");
 }

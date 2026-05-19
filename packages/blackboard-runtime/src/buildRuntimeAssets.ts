@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -34,7 +34,51 @@ function main(): void {
     cpSync(copy.from, copy.to, { recursive: true });
   }
 
+  embedWorkspacePackage("document-model");
+  embedWorkspacePackage("review-model");
+  embedCodexAssets();
+
   console.log(`[runtime-build] embedded backend, host-adapter, and frontend assets into ${runtimeDistRoot}`);
+}
+
+function embedWorkspacePackage(packageName: string): void {
+  const from = path.join(repoRoot, "packages", packageName, "dist");
+  const packageRoot = path.join(runtimeDistRoot, "node_modules", "@blackboard", packageName);
+
+  if (!existsSync(from)) {
+    throw new Error(`workspace package artifact not found: ${from}`);
+  }
+
+  rmSync(packageRoot, { recursive: true, force: true });
+  mkdirSync(path.join(packageRoot, "dist"), { recursive: true });
+  cpSync(from, path.join(packageRoot, "dist"), { recursive: true });
+  writeFileSync(
+    path.join(packageRoot, "package.json"),
+    JSON.stringify(
+      {
+        name: `@blackboard/${packageName}`,
+        private: true,
+        type: "module",
+        exports: {
+          ".": "./dist/index.js",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+function embedCodexAssets(): void {
+  const from = path.join(repoRoot, "packages", "blackboard-runtime", "assets", "codex");
+  const to = path.join(runtimeDistRoot, "codex");
+
+  if (!existsSync(from)) {
+    throw new Error(`Codex asset directory not found: ${from}`);
+  }
+
+  rmSync(to, { recursive: true, force: true });
+  cpSync(from, to, { recursive: true });
 }
 
 main();

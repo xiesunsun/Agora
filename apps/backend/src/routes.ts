@@ -191,7 +191,17 @@ function applyCommand(sessionId: string, command: CommandEnvelope): void {
       break;
     }
     case "bullet.comment.create": {
-      const next = setSession(sessionId, createDocumentUnitComment(snapshot, payload.unitId as string, (payload.anchorTextSnapshot as string) ?? "", payload.content as string));
+      const next = setSession(
+        sessionId,
+        createDocumentUnitComment(
+          snapshot,
+          payload.unitId as string,
+          (payload.anchorTextSnapshot as string) ?? "",
+          payload.content as string,
+          typeof payload.anchorStartOffset === "number" ? payload.anchorStartOffset : undefined,
+          typeof payload.anchorEndOffset === "number" ? payload.anchorEndOffset : undefined,
+        ),
+      );
       const newBullet = next.activeBullets.find((b) => !snapshot.activeBullets.some((ob) => ob.bulletId === b.bulletId));
       if (newBullet) broadcast(sessionId, "bullet.created", newBullet);
       broadcast(sessionId, "session.snapshot", next);
@@ -234,7 +244,7 @@ function applyCommand(sessionId: string, command: CommandEnvelope): void {
       const version = getHistoryVersion(sessionId, versionId);
       if (!version) { broadcast(sessionId, "error.raised", { code: "NOT_FOUND", message: "Version not found", recoverable: true }); return; }
       const next = setSession(sessionId, restoreVersionSnapshot(snapshot, versionId, version.content));
-      broadcastAndDispatch(sessionId, "working_set.rebased", {});
+      broadcastAndDispatch(sessionId, "working_set.rebased", next);
       broadcast(sessionId, "session.snapshot", next);
       break;
     }
@@ -508,4 +518,3 @@ function advanceCommentBulletToProcessing(sessionId: string, bulletId: string, b
     console.log(`  bullet ${bulletId} → processing (dispatched to host)`);
   }, 300);
 }
-

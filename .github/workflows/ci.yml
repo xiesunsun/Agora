@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    tags:
+      - "v*"
   pull_request:
     branches: [main]
 
@@ -21,8 +23,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build all packages
-        run: pnpm --filter @blackboard/runtime build
+      - name: Build Agora package
+        run: pnpm --filter ./packages/blackboard-runtime build
 
       - name: Test backend
         run: pnpm --filter @blackboard/backend test
@@ -36,8 +38,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: blackboard-runtime
-          path: packages/blackboard-runtime/blackboard-runtime-*.tgz
+          name: agora
+          path: packages/blackboard-runtime/agora-*.tgz
 
   # Publish a GitHub Release when a version tag is pushed
   release:
@@ -64,5 +66,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: packages/blackboard-runtime/blackboard-runtime-*.tgz
+          files: packages/blackboard-runtime/agora-*.tgz
           generate_release_notes: true

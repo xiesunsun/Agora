@@ -42,7 +42,9 @@ export function BulletRail({
           }
           key={bullet.bulletId}
           onBlur={() => onHoverBullet(null)}
-          onClick={() => {
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
             onSelectBullet(
               bullet.bulletId !== selectedBulletId ? bullet.bulletId : null,
             );

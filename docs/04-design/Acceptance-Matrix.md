@@ -25,11 +25,11 @@ Purpose:
 
 Expected evidence:
 
-* `npm run harness:report`
-* `npm run harness:check`
-* `npm run harness:arch`
-* `npm run harness:naming`
-* `npm run harness:boundary`
+* `pnpm run harness:report`
+* `pnpm run harness:check`
+* `pnpm run harness:arch`
+* `pnpm run harness:naming`
+* `pnpm run harness:boundary`
 
 ### 2.2 Rendering
 
@@ -40,10 +40,8 @@ Purpose:
 
 Expected evidence:
 
-* Markdown profile tests
-* `DocumentUnit` derivation tests
-* edit-reparse tests
-* diff locality tests
+* `pnpm test`
+* `pnpm test:backend`
 
 ### 2.3 Interaction
 
@@ -53,11 +51,9 @@ Purpose:
 
 Expected evidence:
 
-* session state tests
-* review settlement tests
-* bullet lifecycle tests
-* restore and close flow tests
-* e2e flow tests for the main manuscript loop
+* `pnpm test`
+* `pnpm test:backend`
+* `pnpm e2e`
 
 ### 2.4 Presentation
 
@@ -86,6 +82,17 @@ Expected evidence:
 * dispatcher tests
 * host validation contract review
 * agent-in-the-loop validation run
+
+Baseline automated command sequence:
+
+```bash
+pnpm install
+pnpm run harness:check
+pnpm run test:all
+pnpm run typecheck:all
+pnpm run build:all
+pnpm e2e
+```
 
 ## 3. Acceptance By Constraint
 

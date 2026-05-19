@@ -8,7 +8,10 @@ import { broadcast } from "./sseManager.js";
 import {
   createSession,
   getDispatchEvents,
+  hasOpenSessions,
   getSession,
+  listOpenSessions,
+  listSessions,
   saveHistoryVersion,
   setSession,
   transitionDispatchEventStatus,
@@ -59,6 +62,11 @@ export function handleCliRequest(req: IncomingMessage, res: ServerResponse): boo
     return true;
   }
 
+  if (!sessionId && req.method === "GET") {
+    handleListSessions(url, res);
+    return true;
+  }
+
   if (!sessionId) return false;
 
   // GET /cli/sessions/:id/snapshot — get_snapshot
@@ -87,7 +95,7 @@ export function handleCliRequest(req: IncomingMessage, res: ServerResponse): boo
 
   // POST /cli/sessions/:id/close — close_session
   if (resource === "close" && req.method === "POST") {
-    handleCloseSession(sessionId, res);
+    handleCloseSession(sessionId, req, res);
     return true;
   }
 
@@ -253,18 +261,59 @@ function handleSubmitReviewCandidate(sessionId: string, req: IncomingMessage, re
   }).catch(() => sendError(res, 400, "INTERNAL_ERROR", "Invalid request body"));
 }
 
-function handleCloseSession(sessionId: string, res: ServerResponse): void {
-  const snapshot = getSession(sessionId);
-  if (!snapshot) { sendError(res, 404, "NOT_FOUND", `Session ${sessionId} not found`); return; }
+function handleCloseSession(sessionId: string, req: IncomingMessage, res: ServerResponse): void {
+  readBody(req).then((body) => {
+    const { summaryPath, finalDocumentPath } = body
+      ? JSON.parse(body) as { summaryPath?: string; finalDocumentPath?: string }
+      : {};
+    if (!summaryPath?.trim()) {
+      sendError(res, 400, "INVALID_STATE", "summaryPath is required");
+      return;
+    }
+    if (!finalDocumentPath?.trim()) {
+      sendError(res, 400, "INVALID_STATE", "finalDocumentPath is required");
+      return;
+    }
 
-  const next = setSession(sessionId, closeSession(snapshot));
-  broadcast(sessionId, "session.closed", {});
-  broadcast(sessionId, "session.snapshot", next);
-  console.log(`  CLI close_session → ${sessionId}`);
-  sendJson(res, { ok: true });
+    const snapshot = getSession(sessionId);
+    if (!snapshot) { sendError(res, 404, "NOT_FOUND", `Session ${sessionId} not found`); return; }
+
+    const closeResult = {
+      summaryPath: summaryPath.trim(),
+      finalDocumentPath: finalDocumentPath.trim(),
+      closedAt: new Date().toISOString(),
+    };
+    const next = setSession(sessionId, closeSession(snapshot, closeResult));
+    broadcast(sessionId, "session.closed", {});
+    broadcast(sessionId, "session.snapshot", next);
+    console.log(`  CLI close_session → ${sessionId}`);
+    sendJson(res, {
+      ok: true,
+      sessionId,
+      sessionStatus: next.sessionStatus,
+      closeResult: next.closeResult,
+    });
+  }).catch(() => sendError(res, 400, "INTERNAL_ERROR", "Invalid request body"));
 }
 
 // ─── Dispatch queue handlers ─────────────────────────────────────────────────
+
+function handleListSessions(url: URL, res: ServerResponse): void {
+  const statusFilter = url.searchParams.get("status");
+  const sessions = statusFilter === "open"
+    ? listOpenSessions({ includeDemo: false })
+    : listSessions();
+  const hasRealOpenSessions = hasOpenSessions({ includeDemo: false });
+
+  sendJson(res, {
+    sessions: sessions.map((snapshot) => ({
+      sessionId: snapshot.sessionId,
+      sessionStatus: snapshot.sessionStatus,
+      closeResult: snapshot.closeResult,
+    })),
+    hasOpenSessions: hasRealOpenSessions,
+  });
+}
 
 function handleListDispatchEvents(sessionId: string, url: URL, res: ServerResponse): void {
   const status = url.searchParams.get("status") ?? undefined;
@@ -382,14 +431,22 @@ function getBackendUrl(req: IncomingMessage): string {
 
 // ─── Audit logging ───────────────────────────────────────────────────────────
 
-const AUDIT_DIR = join(process.env.HOME ?? process.env.USERPROFILE ?? "~", ".blackboard", "audit");
-
 function auditWrite(sessionId: string, filename: string, content: string): void {
+  if (!isAuditEnabled()) return;
   try {
-    const dir = join(AUDIT_DIR, sessionId);
+    const dir = join(getAuditDir(), sessionId);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, filename), content, "utf-8");
   } catch {
     // Non-fatal
   }
+}
+
+function isAuditEnabled(): boolean {
+  return ["1", "true", "yes", "on"].includes((process.env.BLACKBOARD_AUDIT_ENABLED ?? "").toLowerCase());
+}
+
+function getAuditDir(): string {
+  return process.env.BLACKBOARD_AUDIT_DIR
+    ?? join(process.env.XDG_STATE_HOME ?? join(process.env.HOME ?? process.env.USERPROFILE ?? "~", ".local", "state"), "blackboard", "audit");
 }

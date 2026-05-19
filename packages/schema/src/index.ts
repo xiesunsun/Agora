@@ -2,7 +2,6 @@ export type SessionStatus =
   | "active"
   | "proceeding"
   | "reviewing"
-  | "history_preview"
   | "closed";
 
 export type DocumentUnitType =
@@ -132,6 +131,12 @@ export interface VersionSummaryItem {
   createdAt: string;
 }
 
+export interface CloseResult {
+  summaryPath: string;
+  finalDocumentPath: string;
+  closedAt: string;
+}
+
 export interface SessionSnapshot {
   sessionId: string;
   sessionStatus: SessionStatus;
@@ -144,6 +149,7 @@ export interface SessionSnapshot {
   activeBullets: Bullet[];
   activeReviewChangeSet?: ReviewChangeSet;
   versionHistory: VersionSummaryItem[];
+  closeResult?: CloseResult;
 }
 
 export interface HistoryVersionPayload {

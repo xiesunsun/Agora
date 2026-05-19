@@ -1,18 +1,29 @@
 {
-  "name": "@blackboard/runtime",
-  "private": true,
-  "version": "0.0.1",
+  "name": "agora",
+  "private": false,
+  "version": "0.1.0",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "bin": {
+    "agora": "dist/cli.js",
     "blackboard-runtime": "dist/cli.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiesunsun/whiteBoard.git"
+  },
+  "homepage": "https://github.com/xiesunsun/whiteBoard#readme",
+  "bugs": {
+    "url": "https://github.com/xiesunsun/whiteBoard/issues"
+  },
   "scripts": {
-    "build": "pnpm --dir ../.. --filter @blackboard/backend build && pnpm --dir ../.. --filter @blackboard/host-adapter build && pnpm --dir ../.. --filter @blackboard/frontend build && tsc && node dist/buildRuntimeAssets.js",
+    "build": "pnpm --dir ../.. --filter @blackboard/document-model build && pnpm --dir ../.. --filter @blackboard/review-model build && pnpm --dir ../.. --filter @blackboard/backend build && pnpm --dir ../.. --filter @blackboard/host-adapter build && pnpm --dir ../.. --filter @blackboard/frontend build && tsc && node dist/buildRuntimeAssets.js",
     "dev": "node --watch --import tsx/esm src/cli.ts",
     "start": "node dist/cli.js",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,6 +32,7 @@
   "devDependencies": {
     "@types/node": "^22.15.17",
     "tsx": "^4.19.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "3.1.4"
   }
 }

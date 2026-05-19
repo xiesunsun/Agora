@@ -92,10 +92,10 @@ export const fixtures = {
   "history-preview": {
     ...activeSnapshot,
     sessionStatus: "active",
-    currentVersionId: "v2",
-    workingSetRevision: 2,
-    currentContent: historyVersions.v2.content,
-    documentUnits: documentUnitsFromMarkdown(historyVersions.v2.content),
+    currentVersionId: "v3",
+    workingSetRevision: 3,
+    currentContent: historyVersions.v3.content,
+    documentUnits: documentUnitsFromMarkdown(historyVersions.v3.content),
     activeBullets: [],
   },
   closed: {

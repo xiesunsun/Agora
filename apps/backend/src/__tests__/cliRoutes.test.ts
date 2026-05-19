@@ -5,6 +5,9 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { EventEmitter } from "node:events";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // ─── Minimal HTTP mocks ───────────────────────────────────────────────────────
 
@@ -140,6 +143,128 @@ describe("/cli/sessions/:id/dispatch-events", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(res._status).toBe(409);
   });
+
+  test("status transitions do not write dispatch jsonl by default", async () => {
+    const eventsDir = mkdtempSync(join(tmpdir(), "blackboard-dispatch-default-off-"));
+    const previousEventsEnabled = process.env.BLACKBOARD_EVENTS_LOG_ENABLED;
+    const previousEventsDir = process.env.BLACKBOARD_EVENTS_DIR;
+    delete process.env.BLACKBOARD_EVENTS_LOG_ENABLED;
+    process.env.BLACKBOARD_EVENTS_DIR = eventsDir;
+    vi.resetModules();
+
+    try {
+      const { handleCliRequest } = await import("../cliRoutes.js");
+      const { enqueueDispatchEvent } = await import("../sessionStore.js");
+
+      const sessionId = `dispatch-default-off-${Date.now()}`;
+      const eventId = "event-1";
+      enqueueDispatchEvent({
+        eventId,
+        sessionId,
+        eventType: "proceed.started",
+        message: "Proceed now",
+        occurredAt: new Date().toISOString(),
+        status: "pending",
+      });
+
+      const claimReq = makeReq("POST", `/cli/sessions/${sessionId}/dispatch-events/${eventId}/claim`);
+      const claimRes = makeRes();
+      handleCliRequest(claimReq, claimRes);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(claimRes._status).toBe(200);
+
+      expect(existsSync(join(eventsDir, `${sessionId}.jsonl`))).toBe(false);
+    } finally {
+      if (previousEventsEnabled === undefined) {
+        delete process.env.BLACKBOARD_EVENTS_LOG_ENABLED;
+      } else {
+        process.env.BLACKBOARD_EVENTS_LOG_ENABLED = previousEventsEnabled;
+      }
+      if (previousEventsDir === undefined) {
+        delete process.env.BLACKBOARD_EVENTS_DIR;
+      } else {
+        process.env.BLACKBOARD_EVENTS_DIR = previousEventsDir;
+      }
+      rmSync(eventsDir, { recursive: true, force: true });
+    }
+  });
+
+  test("status transitions are appended to the dispatch jsonl mirror", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "blackboard-dispatch-log-test-"));
+    const previousHome = process.env.HOME;
+    const previousEventsEnabled = process.env.BLACKBOARD_EVENTS_LOG_ENABLED;
+    const previousEventsDir = process.env.BLACKBOARD_EVENTS_DIR;
+    process.env.HOME = homeDir;
+    process.env.BLACKBOARD_EVENTS_LOG_ENABLED = "true";
+    process.env.BLACKBOARD_EVENTS_DIR = join(homeDir, "events");
+    vi.resetModules();
+
+    try {
+      const { handleCliRequest } = await import("../cliRoutes.js");
+      const { enqueueDispatchEvent } = await import("../sessionStore.js");
+
+      const sessionId = `dispatch-log-${Date.now()}`;
+      const eventId = "event-1";
+      enqueueDispatchEvent({
+        eventId,
+        sessionId,
+        eventType: "proceed.started",
+        message: "Proceed now",
+        occurredAt: new Date().toISOString(),
+        status: "pending",
+      });
+
+      const claimReq = makeReq("POST", `/cli/sessions/${sessionId}/dispatch-events/${eventId}/claim`);
+      const claimRes = makeRes();
+      handleCliRequest(claimReq, claimRes);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(claimRes._status).toBe(200);
+
+      const completeReq = makeReq("POST", `/cli/sessions/${sessionId}/dispatch-events/${eventId}/complete`);
+      const completeRes = makeRes();
+      handleCliRequest(completeReq, completeRes);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(completeRes._status).toBe(200);
+
+      const logFile = join(homeDir, "events", `${sessionId}.jsonl`);
+      const entries = readFileSync(logFile, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+      expect(entries).toEqual([
+        expect.objectContaining({
+          type: "dispatch.status_changed",
+          eventId,
+          fromStatus: "pending",
+          toStatus: "delivering",
+        }),
+        expect.objectContaining({
+          type: "dispatch.status_changed",
+          eventId,
+          fromStatus: "delivering",
+          toStatus: "handled",
+        }),
+      ]);
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = previousHome;
+      }
+      if (previousEventsEnabled === undefined) {
+        delete process.env.BLACKBOARD_EVENTS_LOG_ENABLED;
+      } else {
+        process.env.BLACKBOARD_EVENTS_LOG_ENABLED = previousEventsEnabled;
+      }
+      if (previousEventsDir === undefined) {
+        delete process.env.BLACKBOARD_EVENTS_DIR;
+      } else {
+        process.env.BLACKBOARD_EVENTS_DIR = previousEventsDir;
+      }
+      rmSync(homeDir, { recursive: true, force: true });
+    }
+  });
 });
 
 // ─── /cli/sessions/:id/thread ─────────────────────────────────────────────────
@@ -193,6 +318,117 @@ describe("/cli/sessions/:id/thread", () => {
     await new Promise((r) => setTimeout(r, 50));
 
     expect(res._status).toBe(404);
+  });
+});
+
+describe("/cli/sessions/:id/close", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  test("persists closeResult metadata on successful close", async () => {
+    const { handleCliRequest } = await import("../cliRoutes.js");
+    const { createSession, getSession } = await import("../sessionStore.js");
+
+    const sessionId = `close-${Date.now()}`;
+    createSession(sessionId, "Test", "# Test\n\nContent.");
+
+    const req = makeReq("POST", `/cli/sessions/${sessionId}/close`, {
+      summaryPath: "/tmp/summary.md",
+      finalDocumentPath: "/tmp/final.md",
+    });
+    const res = makeRes();
+    handleCliRequest(req, res);
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(res._status).toBe(200);
+    const body = JSON.parse(res._body);
+    expect(body.ok).toBe(true);
+    expect(body.closeResult).toEqual(
+      expect.objectContaining({
+        summaryPath: "/tmp/summary.md",
+        finalDocumentPath: "/tmp/final.md",
+      }),
+    );
+
+    const snapshot = getSession(sessionId);
+    expect(snapshot?.sessionStatus).toBe("closed");
+    expect(snapshot?.closeResult).toEqual(
+      expect.objectContaining({
+        summaryPath: "/tmp/summary.md",
+        finalDocumentPath: "/tmp/final.md",
+      }),
+    );
+  });
+
+  test("returns 400 when summaryPath is missing", async () => {
+    const { handleCliRequest } = await import("../cliRoutes.js");
+    const { createSession } = await import("../sessionStore.js");
+
+    const sessionId = `close-missing-summary-${Date.now()}`;
+    createSession(sessionId, "Test", "# Test\n\nContent.");
+
+    const req = makeReq("POST", `/cli/sessions/${sessionId}/close`, {
+      finalDocumentPath: "/tmp/final.md",
+    });
+    const res = makeRes();
+    handleCliRequest(req, res);
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(res._status).toBe(400);
+  });
+
+  test("returns 400 when finalDocumentPath is missing", async () => {
+    const { handleCliRequest } = await import("../cliRoutes.js");
+    const { createSession } = await import("../sessionStore.js");
+
+    const sessionId = `close-missing-final-${Date.now()}`;
+    createSession(sessionId, "Test", "# Test\n\nContent.");
+
+    const req = makeReq("POST", `/cli/sessions/${sessionId}/close`, {
+      summaryPath: "/tmp/summary.md",
+    });
+    const res = makeRes();
+    handleCliRequest(req, res);
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(res._status).toBe(400);
+  });
+});
+
+describe("GET /cli/sessions", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  test("status=open excludes demo-only state from runtime shutdown decisions", async () => {
+    const { handleCliRequest } = await import("../cliRoutes.js");
+    const { closeSession } = await import("../sessionModel.js");
+    const { createSession, getOrCreateDemoSession, getSession, setSession } = await import("../sessionStore.js");
+
+    getOrCreateDemoSession();
+    const sessionId = `real-session-${Date.now()}`;
+    createSession(sessionId, "Test", "# Test\n\nContent.");
+    const snapshot = getSession(sessionId)!;
+    setSession(
+      sessionId,
+      closeSession(snapshot, {
+        summaryPath: "/tmp/summary.md",
+        finalDocumentPath: "/tmp/final.md",
+        closedAt: "2026-05-19T00:00:00.000Z",
+      }),
+    );
+
+    const req = makeReq("GET", "/cli/sessions?status=open");
+    const res = makeRes();
+    handleCliRequest(req, res);
+    await waitForBody(res);
+
+    expect(res._status).toBe(200);
+    expect(JSON.parse(res._body)).toEqual({
+      sessions: [],
+      hasOpenSessions: false,
+    });
   });
 });
 

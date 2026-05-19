@@ -5,6 +5,12 @@
  * surface (spawn_agent / send_input / wait_agent).
  */
 
+export interface CloseResult {
+  summaryPath: string;
+  finalDocumentPath: string;
+  closedAt: string;
+}
+
 export interface DispatchEvent {
   eventId: string;
   sessionId: string;
@@ -26,6 +32,7 @@ export interface SessionSnapshot {
   sessionId: string;
   sessionStatus: string;
   activeBullets: Array<{ bulletId: string; status: string }>;
+  closeResult?: CloseResult;
 }
 
 export interface SpawnAgentResult {
@@ -35,6 +42,39 @@ export interface SpawnAgentResult {
 export interface AgentTurnResult {
   status: "completed" | "failed" | "timed_out";
   outputText: string;
+}
+
+export type RelayDiagnosticOutcome =
+  | "close_result_missing"
+  | "mainThreadId_missing"
+  | "send_input_failed"
+  | "wait_agent_failed"
+  | "relay_turn_not_completed"
+  | "relay_completed";
+
+export interface RelayDiagnosticStages {
+  hasCloseResult: boolean;
+  hasMainThreadId: boolean;
+  sendInputAttempted: boolean;
+  sendInputSucceeded: boolean;
+  waitAgentAttempted: boolean;
+  waitAgentCompleted: boolean;
+}
+
+export interface RelayDiagnosticError {
+  message: string;
+  stack?: string;
+}
+
+export interface RelayDiagnosticRecord {
+  sessionId: string;
+  mainThreadId: string | null;
+  writtenAt: string;
+  outcome: RelayDiagnosticOutcome;
+  stages: RelayDiagnosticStages;
+  relayTurnStatus: AgentTurnResult["status"] | null;
+  closeResult: CloseResult | null;
+  error?: RelayDiagnosticError;
 }
 
 /** Codex host control surface — implemented by the runtime environment. */

@@ -31,13 +31,43 @@ function renderInline(
     return renderHighlightedText(text, highlights, onHoverHighlightBullet);
   }
 
-  return text.split(/(`[^`]+`)/g).map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return <code key={`${part}-${index}`}>{part.slice(1, -1)}</code>;
+  return parseInlineMarkdown(text);
+}
+
+function parseInlineMarkdown(text: string): ReactNode[] {
+  // 匹配: **bold**, *italic*, ~~strikethrough~~, `code`, [link](url)
+  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
     }
 
-    return part;
-  });
+    const key = `${match.index}-${match[0]}`;
+
+    if (match[2]) {
+      parts.push(<strong key={key}>{match[2]}</strong>);
+    } else if (match[3]) {
+      parts.push(<em key={key}>{match[3]}</em>);
+    } else if (match[4]) {
+      parts.push(<del key={key}>{match[4]}</del>);
+    } else if (match[5]) {
+      parts.push(<code key={key}>{match[5]}</code>);
+    } else if (match[6] && match[7]) {
+      parts.push(<a key={key} href={match[7]} target="_blank" rel="noopener noreferrer">{match[6]}</a>);
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
 }
 
 function renderHighlightedText(

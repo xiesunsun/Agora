@@ -2,6 +2,7 @@ import { diffArrays, diffWords } from "diff";
 import type {
   Bullet,
   Change,
+  CloseResult,
   DocumentUnit,
   HistoryVersionPayload,
   ProceedingStage,
@@ -11,7 +12,13 @@ import type {
   VersionSummaryItem,
 } from "./types.js";
 import {
-  applyChangeToMarkdown,
+  acceptedChanges,
+  applyAcceptedChange,
+  applyAcceptedPendingChanges,
+  hasPendingChanges,
+  markReviewChanges,
+} from "@blackboard/review-model";
+import {
   findUnitAtSourceOffset,
   documentUnitsFromMarkdown,
   removeUnitFromContent,
@@ -64,6 +71,8 @@ export function createDocumentUnitComment(
   unitId: string,
   anchorText: string,
   content: string,
+  anchorStartOffset?: number,
+  anchorEndOffset?: number,
 ): SessionSnapshot {
   const target = snapshot.documentUnits.find((u) => u.unitId === unitId);
   if (!target || !anchorText.trim() || !content.trim()) return snapshot;
@@ -77,6 +86,8 @@ export function createDocumentUnitComment(
     queueOrder: snapshot.activeBullets.length,
     createdAt: new Date().toISOString(),
     anchorTextSnapshot: anchorText.trim().slice(0, 500),
+    anchorStartOffset,
+    anchorEndOffset,
     content: content.trim(),
   };
 
@@ -127,8 +138,14 @@ export function completeProceeding(snapshot: SessionSnapshot, changeSet: ReviewC
   };
 }
 
-export function closeSession(snapshot: SessionSnapshot): SessionSnapshot {
-  return { ...snapshot, sessionStatus: "closed", proceeding: null, activeBullets: [] };
+export function closeSession(snapshot: SessionSnapshot, closeResult: CloseResult): SessionSnapshot {
+  return {
+    ...snapshot,
+    sessionStatus: "closed",
+    proceeding: null,
+    activeBullets: [],
+    closeResult,
+  };
 }
 
 export function resolveReviewChange(
@@ -155,7 +172,7 @@ export function resolveReviewChangeWithSettlement(
         currentContent: snapshot.currentContent,
         documentUnits: snapshot.documentUnits,
       };
-  const changes = changeSet.changes.map((c) => c.changeId === changeId ? { ...c, status } : c);
+  const changes = markReviewChanges(changeSet.changes, status, changeId);
 
   return resolveReviewIfSettled({
     ...snapshot,
@@ -164,7 +181,7 @@ export function resolveReviewChangeWithSettlement(
     activeReviewChangeSet: {
       ...changeSet,
       changes,
-      status: changes.some((c) => c.status === "pending") ? changeSet.status : "resolved",
+      status: hasPendingChanges(changes) ? changeSet.status : "resolved",
     },
   });
 }
@@ -184,15 +201,12 @@ export function resolveAllReviewChangesWithSettlement(
   if (pending.length === 0) return resolveReviewIfSettled(snapshot);
 
   const nextDocumentState = status === "accepted"
-    ? {
-        currentContent: changeSet.candidateContent,
-        documentUnits: documentUnitsFromMarkdown(changeSet.candidateContent),
-      }
+    ? applyAcceptedPendingChanges(snapshot.currentContent, snapshot.documentUnits, pending)
     : {
         currentContent: snapshot.currentContent,
         documentUnits: snapshot.documentUnits,
       };
-  const changes = changeSet.changes.map((c) => c.status === "pending" ? { ...c, status } : c);
+  const changes = markReviewChanges(changeSet.changes, status);
 
   return resolveReviewIfSettled({
     ...snapshot,
@@ -200,17 +214,6 @@ export function resolveAllReviewChangesWithSettlement(
     documentUnits: nextDocumentState.documentUnits,
     activeReviewChangeSet: { ...changeSet, changes, status: "resolved" },
   });
-}
-
-function applyAcceptedChange(
-  currentContent: string,
-  documentUnits: DocumentUnit[],
-  change: Change,
-): {
-  currentContent: string;
-  documentUnits: DocumentUnit[];
-} {
-  return applyChangeToMarkdown(currentContent, documentUnits, change);
 }
 
 export interface ReviewSettlement {
@@ -227,11 +230,11 @@ export interface ReviewSettlementResult {
 
 function resolveReviewIfSettled(snapshot: SessionSnapshot): ReviewSettlementResult {
   const changeSet = snapshot.activeReviewChangeSet;
-  if (!changeSet || changeSet.changes.some((c) => c.status === "pending")) {
+  if (!changeSet || hasPendingChanges(changeSet)) {
     return { snapshot, settlement: null };
   }
 
-  const acceptedChanges = changeSet.changes.filter((c) => c.status === "accepted");
+  const acceptedReviewChanges = acceptedChanges(changeSet);
   const settledAt = new Date().toISOString();
   const appliedBullets = snapshot.activeBullets.map((b) => ({ ...b, status: "applied" as const }));
   const baseSnapshot = {
@@ -244,7 +247,7 @@ function resolveReviewIfSettled(snapshot: SessionSnapshot): ReviewSettlementResu
     workingSetRevision: snapshot.workingSetRevision + 1,
   };
 
-  if (acceptedChanges.length === 0) {
+  if (acceptedReviewChanges.length === 0) {
     return {
       snapshot: baseSnapshot,
       settlement: {

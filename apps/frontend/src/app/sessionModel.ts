@@ -13,7 +13,13 @@ import type {
   VersionSummaryItem,
 } from "../types/blackboard";
 import {
-  applyChangeToMarkdown,
+  acceptedChanges,
+  applyAcceptedChange,
+  applyAcceptedPendingChanges,
+  hasPendingChanges,
+  markReviewChanges,
+} from "@blackboard/review-model";
+import {
   documentUnitsFromMarkdown,
   findUnitAtSourceOffset,
   removeUnitFromContent,
@@ -173,6 +179,8 @@ export function createDocumentUnitComment(
   unitId: string,
   anchorText: string,
   content: string,
+  anchorStartOffset?: number,
+  anchorEndOffset?: number,
 ): SessionSnapshot {
   const targetUnit = snapshot.documentUnits.find(
     (unit) => unit.unitId === unitId,
@@ -193,6 +201,8 @@ export function createDocumentUnitComment(
     queueOrder: snapshot.activeBullets.length,
     createdAt: new Date().toISOString(),
     anchorTextSnapshot: trimmedAnchorText.slice(0, 500),
+    anchorStartOffset,
+    anchorEndOffset,
     content: trimmedContent,
   }, snapshot.documentUnits, snapshot.activeBullets);
 
@@ -345,9 +355,7 @@ export function resolveReviewChangeWithSettlement(
           currentContent: snapshot.currentContent,
           documentUnits: snapshot.documentUnits,
         };
-  const changes = changeSet.changes.map((change) =>
-    change.changeId === changeId ? { ...change, status } : change,
-  );
+  const changes = markReviewChanges(changeSet.changes, status, changeId);
 
   return resolveReviewIfSettled({
     ...snapshot,
@@ -356,7 +364,7 @@ export function resolveReviewChangeWithSettlement(
     activeReviewChangeSet: {
       ...changeSet,
       changes,
-      status: changes.some((change) => change.status === "pending")
+      status: hasPendingChanges(changes)
         ? changeSet.status
         : "resolved",
     },
@@ -390,17 +398,16 @@ export function resolveAllReviewChangesWithSettlement(
 
   const nextDocumentState =
     status === "accepted"
-      ? {
-          currentContent: changeSet.candidateContent,
-          documentUnits: documentUnitsFromMarkdown(changeSet.candidateContent),
-        }
+      ? applyAcceptedPendingChanges(
+          snapshot.currentContent,
+          snapshot.documentUnits,
+          pendingChanges,
+        )
       : {
           currentContent: snapshot.currentContent,
           documentUnits: snapshot.documentUnits,
         };
-  const changes = changeSet.changes.map((change) =>
-    change.status === "pending" ? { ...change, status } : change,
-  );
+  const changes = markReviewChanges(changeSet.changes, status);
 
   return resolveReviewIfSettled({
     ...snapshot,
@@ -414,17 +421,6 @@ export function resolveAllReviewChangesWithSettlement(
   });
 }
 
-export function applyAcceptedChange(
-  currentContent: string,
-  documentUnits: DocumentUnit[],
-  change: Change,
-): {
-  currentContent: string;
-  documentUnits: DocumentUnit[];
-} {
-  return applyChangeToMarkdown(currentContent, documentUnits, change);
-}
-
 export function resolveReviewIfSettled(
   snapshot: SessionSnapshot,
 ): ReviewSettlementResult {
@@ -432,14 +428,12 @@ export function resolveReviewIfSettled(
 
   if (
     !changeSet ||
-    changeSet.changes.some((change) => change.status === "pending")
+    hasPendingChanges(changeSet)
   ) {
     return { snapshot, settlement: null };
   }
 
-  const acceptedChanges = changeSet.changes.filter(
-    (change) => change.status === "accepted",
-  );
+  const acceptedReviewChanges = acceptedChanges(changeSet);
   const settledAt = new Date().toISOString();
   const baseSnapshot: SessionSnapshot = {
     ...snapshot,
@@ -451,7 +445,7 @@ export function resolveReviewIfSettled(
     workingSetRevision: snapshot.workingSetRevision + 1,
   };
 
-  if (acceptedChanges.length === 0) {
+  if (acceptedReviewChanges.length === 0) {
     return {
       snapshot: baseSnapshot,
       settlement: {
