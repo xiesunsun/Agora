@@ -5,7 +5,7 @@
 <h1 align="center">Agora</h1>
 
 <p align="center">
-  中文 · <a href="./README.en.md">English (Coming Soon)</a>
+  中文 · <a href="./README.en.md">English</a>
 </p>
 
 <p align="center">
@@ -192,6 +192,7 @@ pnpm run smoke:agora
 
 - **当前版本**：`0.1.0`
 - **npm 包名**：`@sunxie/agora`
+- **GitHub 包名**：`@xiesunsun/agora`
 - **全局命令**：`agora`
 - **许可证**：`Apache-2.0`
 
