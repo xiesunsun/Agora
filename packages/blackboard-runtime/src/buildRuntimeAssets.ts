@@ -36,6 +36,7 @@ function main(): void {
 
   embedWorkspacePackage("document-model");
   embedWorkspacePackage("review-model");
+  embedCodexAssets();
 
   console.log(`[runtime-build] embedded backend, host-adapter, and frontend assets into ${runtimeDistRoot}`);
 }
@@ -66,6 +67,18 @@ function embedWorkspacePackage(packageName: string): void {
       2,
     ),
   );
+}
+
+function embedCodexAssets(): void {
+  const from = path.join(repoRoot, "packages", "blackboard-runtime", "assets", "codex");
+  const to = path.join(runtimeDistRoot, "codex");
+
+  if (!existsSync(from)) {
+    throw new Error(`Codex asset directory not found: ${from}`);
+  }
+
+  rmSync(to, { recursive: true, force: true });
+  cpSync(from, to, { recursive: true });
 }
 
 main();

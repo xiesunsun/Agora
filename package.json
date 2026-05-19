@@ -6,7 +6,7 @@
     "dev": "pnpm --filter @blackboard/frontend dev",
     "dev:backend": "pnpm --filter @blackboard/backend dev",
     "build": "pnpm --filter @blackboard/frontend build",
-    "build:all": "pnpm --filter @blackboard/runtime build",
+    "build:all": "pnpm --filter ./packages/blackboard-runtime build",
     "build:backend": "pnpm --filter @blackboard/backend build",
     "e2e": "pnpm --filter @blackboard/frontend e2e",
     "harness:arch": "node harness/scripts/check.mjs --arch",
@@ -22,7 +22,9 @@
     "typecheck:all": "pnpm --filter @blackboard/frontend lint && pnpm --filter @blackboard/backend build && pnpm --filter @blackboard/host-adapter typecheck",
     "adapter": "pnpm --filter @blackboard/host-adapter start",
     "adapter:dev": "pnpm --filter @blackboard/host-adapter dev",
-    "runtime": "pnpm --filter @blackboard/runtime start",
-    "runtime:dev": "pnpm --filter @blackboard/runtime dev"
+    "runtime": "pnpm --filter ./packages/blackboard-runtime start",
+    "runtime:dev": "pnpm --filter ./packages/blackboard-runtime dev",
+    "smoke:agora": "node harness/scripts/smoke-agora-published-install.mjs",
+    "reinstall": "bash scripts/reinstall.sh"
   }
 }
