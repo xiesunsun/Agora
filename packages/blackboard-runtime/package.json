@@ -15,6 +15,10 @@
     "type": "git",
     "url": "git+https://github.com/xiesunsun/whiteBoard.git"
   },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "homepage": "https://github.com/xiesunsun/whiteBoard#readme",
   "bugs": {
     "url": "https://github.com/xiesunsun/whiteBoard/issues"
