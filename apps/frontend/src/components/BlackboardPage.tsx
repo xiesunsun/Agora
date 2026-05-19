@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { useSessionStore } from "../app/sessionStore";
 import {
   selectActiveBullets,
@@ -61,19 +61,68 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
     return () => window.clearTimeout(timer);
   }, [closeState]);
 
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
   useEffect(() => {
     if (
       pageStatus !== "proceeding" ||
-      session.state.connectionStatus !== "offline" ||
-      session.state.runtimeMode.kind !== "fixture"
+      sessionRef.current.state.connectionStatus !== "offline" ||
+      sessionRef.current.state.runtimeMode.kind !== "fixture"
     ) {
       return;
     }
 
-    const timer = window.setTimeout(() => session.completeProceeding(), 1400);
+    const s = sessionRef.current;
+    const evt = (type: string, payload: unknown) => ({
+      eventId: `fixture-${Date.now()}-${Math.random()}`,
+      type,
+      sessionId: "fixture",
+      occurredAt: new Date().toISOString(),
+      payload,
+    });
 
-    return () => window.clearTimeout(timer);
-  }, [pageStatus, session]);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    // 阶段 1: resolving_bullets, 0-33%
+    let t = 0;
+    for (let p = 0; p <= 33; p += 4) {
+      const pp = p;
+      timers.push(setTimeout(() => {
+        s.applyEvent(evt("proceed.progress_updated", { completed: pp, total: 100 }));
+      }, t));
+      t += 180;
+    }
+
+    // 阶段 2: synthesizing_changes, 33-66%
+    timers.push(setTimeout(() => {
+      s.applyEvent(evt("proceed.stage_changed", { stage: "synthesizing_changes" }));
+    }, t));
+    for (let p = 34; p <= 66; p += 4) {
+      const pp = p;
+      timers.push(setTimeout(() => {
+        s.applyEvent(evt("proceed.progress_updated", { completed: pp, total: 100 }));
+      }, t));
+      t += 180;
+    }
+
+    // 阶段 3: materializing_review, 66-95%
+    timers.push(setTimeout(() => {
+      s.applyEvent(evt("proceed.stage_changed", { stage: "materializing_review" }));
+    }, t));
+    for (let p = 67; p <= 95; p += 4) {
+      const pp = p;
+      timers.push(setTimeout(() => {
+        s.applyEvent(evt("proceed.progress_updated", { completed: pp, total: 100 }));
+      }, t));
+      t += 180;
+    }
+
+    // 完成 → review
+    timers.push(setTimeout(() => s.completeProceeding(), t + 300));
+
+    return () => timers.forEach(clearTimeout);
+  }, [pageStatus]);
 
   function handleCommitEdit(unitId: string, text: string) {
     session.commitDocumentUnitEdit(unitId, text);
@@ -99,7 +148,11 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
   function requestClose() {
     setCloseState("requested");
     setCloseTimedOut(false);
-    session.closeSession();
+    if (session.state.runtimeMode.kind === "fixture") {
+      setTimeout(() => sessionRef.current.closeSession(), 2000);
+    } else {
+      session.closeSession();
+    }
   }
 
   function handleClose() {
@@ -174,10 +227,10 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
                 type="button"
                 onClick={() => setCloseState("idle")}
               >
-                Cancel
+                取消
               </button>
               <button type="button" onClick={requestClose}>
-                Close session
+                确认关闭
               </button>
             </div>
           </div>
@@ -186,13 +239,8 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
       {closeState === "requested" && pageStatus !== "closed" ? (
         <section className="proceeding-overlay" aria-label="Closing session">
           <div className="proceeding-status">
-            <div className="proceeding-orbit" aria-hidden="true">
-              <span className="orbit-line orbit-line-a" />
-              <span className="orbit-line orbit-line-b" />
-              <span className="orbit-line orbit-line-c" />
-              <span className="orbit-dot orbit-dot-a" />
-              <span className="orbit-dot orbit-dot-b" />
-              <span className="orbit-core" />
+            <div className="proceeding-ink" aria-hidden="true">
+              <span className="ink-drop" />
             </div>
             <h2>正在关闭会话</h2>
             <p>
@@ -209,7 +257,7 @@ export function BlackboardPage({ session }: BlackboardPageProps) {
                   setCloseTimedOut(false);
                 }}
               >
-                Return to session
+                返回会话
               </button>
             ) : null}
           </div>

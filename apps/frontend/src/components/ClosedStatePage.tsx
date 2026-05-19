@@ -15,18 +15,10 @@ export function ClosedStatePage({
     <section className="closed-state-page" aria-label="Closed manuscript">
       <header className="closed-state-chrome">
         <div className="closed-state-title" title={snapshot.title}>
-          {snapshot.title}...
+          {snapshot.title}
         </div>
         <div className="closed-state-status">当前会话已关闭 · 仅供阅读</div>
-        <div className="closed-state-actions">
-          <button
-            type="button"
-            className="closed-state-close"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
+        <div className="closed-state-actions" />
       </header>
 
       <main className="closed-state-main">

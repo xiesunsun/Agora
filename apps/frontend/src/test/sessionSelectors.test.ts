@@ -17,7 +17,7 @@ describe("session selectors", () => {
   });
 
   it("exposes revision and review state used by the page", () => {
-    expect(selectRevisionLabel(activeSnapshot)).toBe("v3 · r3");
+    expect(selectRevisionLabel(activeSnapshot)).toBe("三稿");
     expect(selectActiveReviewChangeSet(activeSnapshot)).toBeNull();
   });
 

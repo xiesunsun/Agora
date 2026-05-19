@@ -75,7 +75,7 @@ function ReviewChrome({
   return (
     <header className="review-chrome">
       <div className="review-chrome-title" title={snapshot.title}>
-        {snapshot.title}...
+        {snapshot.title}
       </div>
       <div className="review-mode-switch" aria-label="Review mode">
         <button
@@ -84,7 +84,7 @@ function ReviewChrome({
           onClick={() => onSwitchMode("flow")}
           type="button"
         >
-          Flow Review
+          通篇审阅
         </button>
         <button
           className="review-mode-button"
@@ -92,7 +92,7 @@ function ReviewChrome({
           onClick={() => onSwitchMode("pr")}
           type="button"
         >
-          PR Review
+          逐条审阅
         </button>
       </div>
       <div className="review-chrome-actions" />
@@ -181,12 +181,6 @@ function PrReview({
     (unit) => unit.unitId === focusedChange?.unitId,
   );
   const resolvedIndex = targetIndex >= 0 ? targetIndex : documentUnits.length - 1;
-  const beforeUnits = contextualUnits(
-    documentUnits.slice(0, resolvedIndex),
-  ).slice(-4);
-  const afterUnits = contextualUnits(
-    documentUnits.slice(resolvedIndex + 1),
-  ).slice(0, 4);
   const targetUnit = documentUnits[resolvedIndex];
 
   if (!focusedChange || !targetUnit) {
@@ -196,11 +190,13 @@ function PrReview({
   return (
     <main className="pr-review-main">
       <section className="pr-review-column">
-        <div className="pr-review-context" aria-label="Preceding manuscript">
-          {beforeUnits.map((unit) => (
-            <ReviewUnit key={unit.unitId} unit={unit} />
-          ))}
-        </div>
+        {resolvedIndex > 0 && (
+          <div className="pr-review-context" aria-label="Preceding manuscript">
+            {documentUnits.slice(0, resolvedIndex).map((unit) => (
+              <ReviewUnit key={unit.unitId} unit={unit} />
+            ))}
+          </div>
+        )}
 
         <article className="pr-review-hunk">
           <div className="pr-review-hunk-meta">
@@ -227,11 +223,13 @@ function PrReview({
           </div>
         </article>
 
-        <div className="pr-review-context" aria-label="Following manuscript">
-          {afterUnits.map((unit) => (
-            <ReviewUnit key={unit.unitId} unit={unit} />
-          ))}
-        </div>
+        {resolvedIndex < documentUnits.length - 1 && (
+          <div className="pr-review-context" aria-label="Following manuscript">
+            {documentUnits.slice(resolvedIndex + 1).map((unit) => (
+              <ReviewUnit key={unit.unitId} unit={unit} />
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

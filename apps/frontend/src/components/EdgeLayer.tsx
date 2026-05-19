@@ -7,13 +7,16 @@ interface EdgeLayerProps {
 }
 
 interface EdgeGeometry {
-  angle: number;
-  length: number;
+  channelX: number;
   sourceX: number;
   sourceY: number;
   targetX: number;
   targetY: number;
 }
+
+const EDGE_TARGET_OFFSET = 8;
+const EDGE_CHANNEL_OFFSET = 28;
+const EDGE_SOURCE_CLEARANCE = 18;
 
 export function EdgeLayer({ activeBullet, layoutState }: EdgeLayerProps) {
   const [geometry, setGeometry] = useState<EdgeGeometry | null>(null);
@@ -26,16 +29,18 @@ export function EdgeLayer({ activeBullet, layoutState }: EdgeLayerProps) {
 
     const measure = () => {
       const surface = document.querySelector(".reading-surface");
+      const documentView = document.querySelector(".document-view");
       const bulletDot = document.querySelector(
         `[data-bullet-id="${activeBullet.bulletId}"] .bullet-dot`,
       );
 
-      if (!surface || !bulletDot) {
+      if (!surface || !documentView || !bulletDot) {
         setGeometry(null);
         return;
       }
 
       const surfaceRect = surface.getBoundingClientRect();
+      const documentViewRect = documentView.getBoundingClientRect();
       const sourceRect = bulletDot.getBoundingClientRect();
       const targetRect = findTargetRect(activeBullet, sourceRect);
 
@@ -46,11 +51,17 @@ export function EdgeLayer({ activeBullet, layoutState }: EdgeLayerProps) {
 
       const sourceX = sourceRect.left + sourceRect.width / 2 - surfaceRect.left;
       const sourceY = sourceRect.top + sourceRect.height / 2 - surfaceRect.top;
-      const targetX = targetRect.right + 6 - surfaceRect.left;
+      const contentRightX = documentViewRect.right - surfaceRect.left;
+      const maxTargetX = sourceX - EDGE_SOURCE_CLEARANCE * 2;
+      const maxChannelX = sourceX - EDGE_SOURCE_CLEARANCE;
+      const targetX = Math.min(contentRightX + EDGE_TARGET_OFFSET, maxTargetX);
+      const channelX = Math.max(
+        targetX,
+        Math.min(contentRightX + EDGE_CHANNEL_OFFSET, maxChannelX),
+      );
       const targetY = targetRect.top + targetRect.height / 2 - surfaceRect.top;
-      const angle = Math.atan2(sourceY - targetY, sourceX - targetX);
-      const length = Math.hypot(targetX - sourceX, targetY - sourceY);
       const geometryKey = [
+        channelX.toFixed(1),
         sourceX.toFixed(1),
         sourceY.toFixed(1),
         targetX.toFixed(1),
@@ -60,6 +71,7 @@ export function EdgeLayer({ activeBullet, layoutState }: EdgeLayerProps) {
       setGeometry((currentGeometry) => {
         const currentGeometryKey = currentGeometry
           ? [
+              currentGeometry.channelX.toFixed(1),
               currentGeometry.sourceX.toFixed(1),
               currentGeometry.sourceY.toFixed(1),
               currentGeometry.targetX.toFixed(1),
@@ -72,8 +84,7 @@ export function EdgeLayer({ activeBullet, layoutState }: EdgeLayerProps) {
         }
 
         return {
-          angle,
-          length,
+          channelX,
           sourceX,
           sourceY,
           targetX,
@@ -110,28 +121,65 @@ export function EdgeLayer({ activeBullet, layoutState }: EdgeLayerProps) {
   return (
     <div className="edge-layer" aria-hidden="true">
       {geometry ? (
-        <>
-          <span
-            className="edge-thread-line"
-            style={{
-              left: geometry.targetX,
-              top: geometry.targetY,
-              transform: `rotate(${geometry.angle}rad)`,
-              width: geometry.length,
-            }}
+        <svg
+          className="edge-svg"
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            overflow: "visible",
+          }}
+        >
+          <defs>
+            <linearGradient id="edge-grad" gradientUnits="userSpaceOnUse"
+              x1={geometry.targetX} y1={geometry.targetY}
+              x2={geometry.sourceX} y2={geometry.sourceY}>
+              <stop offset="0%" stopColor="rgba(107, 92, 76, 0.3)" />
+              <stop offset="100%" stopColor="rgba(107, 92, 76, 0.6)" />
+            </linearGradient>
+          </defs>
+          <path
+            className="edge-connector"
+            d={buildEdgePath(geometry)}
+            fill="none"
+            stroke="url(#edge-grad)"
+            strokeWidth="1"
+            strokeDasharray="2 4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
-          <span
-            className="edge-thread-source"
-            style={{ left: geometry.sourceX, top: geometry.sourceY }}
+          <circle
+            cx={geometry.targetX}
+            cy={geometry.targetY}
+            r="2"
+            fill="rgba(107, 92, 76, 0.45)"
+            className="edge-connector"
           />
-          <span
-            className="edge-thread-target"
-            style={{ left: geometry.targetX, top: geometry.targetY }}
-          />
-        </>
+        </svg>
       ) : null}
     </div>
   );
+}
+
+function buildEdgePath(g: EdgeGeometry): string {
+  if (Math.abs(g.sourceY - g.targetY) < 2) {
+    return `M ${g.targetX} ${g.targetY} H ${g.sourceX}`;
+  }
+
+  // 圆弧半径
+  const r = 6;
+  const dir = g.sourceY > g.targetY ? 1 : -1; // 1 = 向下, -1 = 向上
+
+  // 从 target 水平到 channel，拐弯处用圆弧，再垂直到 source 高度，拐弯用圆弧，再水平到 source
+  return [
+    `M ${g.targetX} ${g.targetY}`,
+    `H ${g.channelX - r}`,
+    `a ${r} ${r} 0 0 ${dir > 0 ? 1 : 0} ${r} ${r * dir}`,
+    `V ${g.sourceY - r * dir}`,
+    `a ${r} ${r} 0 0 ${dir > 0 ? 0 : 1} ${r} ${r * dir}`,
+    `H ${g.sourceX}`,
+  ].join(" ");
 }
 
 function findTargetRect(

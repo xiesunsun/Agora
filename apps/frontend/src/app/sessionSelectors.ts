@@ -36,7 +36,13 @@ export function selectActiveReviewChangeSet(
 }
 
 export function selectRevisionLabel(snapshot: SessionSnapshot): string {
-  return `${snapshot.currentVersionId} · r${snapshot.workingSetRevision}`;
+  const version = snapshot.versionHistory.find(
+    (v) => v.versionId === snapshot.currentVersionId,
+  );
+  const num = version?.versionNumber ?? snapshot.versionHistory.length;
+  if (num === 0) return "原稿";
+  const cnNum = ["", "初稿", "二稿", "三稿", "四稿", "五稿", "六稿", "七稿", "八稿", "九稿", "十稿"];
+  return num <= 10 ? cnNum[num] : `第${num}稿`;
 }
 
 export function selectPageStatus(

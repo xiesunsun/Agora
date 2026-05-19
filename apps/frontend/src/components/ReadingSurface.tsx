@@ -142,8 +142,13 @@ export function ReadingSurface({
     };
   }, [bullets, documentUnits, editingUnitId, railVisible]);
 
-  function handlePointerUp() {
+  function handlePointerUp(event: PointerEvent<HTMLElement>) {
     if (editingUnitId) {
+      return;
+    }
+
+    const target = event.target as Element;
+    if (target.closest(".inline-comment-popover")) {
       return;
     }
 
@@ -261,7 +266,10 @@ export function ReadingSurface({
       {selectionDraft ? (
         <InlineCommentPopover
           selectionDraft={selectionDraft}
-          onCancel={() => setSelectionDraft(null)}
+          onCancel={() => {
+            window.getSelection()?.removeAllRanges();
+            setSelectionDraft(null);
+          }}
           onSubmit={(unitId, anchorText, content, anchorStartOffset, anchorEndOffset) => {
             onCreateComment(
               unitId,
@@ -382,11 +390,7 @@ function buildCommentHighlightsByUnit(
     }
   }
 
-  if (selectionDraft) {
-    addHighlight(selectionDraft.unitId, selectionDraft.anchorText, {
-      isDraft: true,
-    });
-  }
+  // 不对 selectionDraft 做 DOM 高亮，保留浏览器原生 selection 以支持复制
 
   if (activeBullet?.type === "comment" && activeBullet.anchorTextSnapshot) {
     addHighlight(activeBullet.unitId, activeBullet.anchorTextSnapshot.split("\n")[0], {

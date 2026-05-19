@@ -91,6 +91,7 @@ Agent 开发需要理解的核心约束：
 ### 关键实现约束
 
 - **执行模型**：单一 subagent 托管单一 session，串行事件队列
+- **发布命令面**：对外 CLI 使用 `agora`，内部实现目录仍位于 `packages/blackboard-runtime`
 - **CLI 命令**：create_session、get_snapshot、mark_bullet_ready、submit_review_candidate、close_session
 - **本地工作区**：mainAgentInfo.md、sessionDocument.md、summary.md 是最小稳定锚点
 - **回合结束义务**：comment bullet → mark_bullet_ready；Proceed → submit_review_candidate；close → summary.md + close_session
@@ -99,8 +100,9 @@ Agent 开发需要理解的核心约束：
 ### 目标代码位置
 
 ```
-packages/agent-cli/
-  src/commands/ — 任务级命令封装、面向 subagent 的高层业务命令
+packages/blackboard-runtime/
+  src/ — Agora CLI、published doctor、Codex asset embedding
+  assets/codex/ — canonical skill 与 worker config 模板
 ```
 
 ## 核心技术决策速查
@@ -131,6 +133,7 @@ corepack pnpm run test:all
 corepack pnpm run typecheck:all
 corepack pnpm run build:all
 corepack pnpm e2e
+corepack pnpm run smoke:agora
 
 # 运行 harness 检查
 corepack pnpm run harness:report
@@ -139,6 +142,18 @@ corepack pnpm run harness:arch
 corepack pnpm run harness:naming
 corepack pnpm run harness:boundary
 ```
+
+## 发布安装验证
+
+面向外部用户的安装路径：
+
+```bash
+npm install -g agora
+agora init-codex --force
+agora doctor
+```
+
+需要做 repo 外真实协作验证时，使用 [Agora-Published-E2E-Runbook.md](05-agent/Agora-Published-E2E-Runbook.md)。
 
 ## 完整文档索引
 
