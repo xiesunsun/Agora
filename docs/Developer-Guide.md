@@ -148,7 +148,7 @@ corepack pnpm run harness:boundary
 面向外部用户的安装路径：
 
 ```bash
-npm install -g agora
+npm install -g @xiesunsun/agora
 agora init-codex --force
 agora doctor
 ```

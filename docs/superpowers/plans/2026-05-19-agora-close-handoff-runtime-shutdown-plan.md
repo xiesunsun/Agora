@@ -698,7 +698,7 @@ Run:
 ```bash
 mkdir -p /tmp/agora-pack-test
 pnpm --filter ./packages/blackboard-runtime pack --pack-destination /tmp/agora-pack-test
-npm install -g /tmp/agora-pack-test/agora-*.tgz
+npm install -g /tmp/agora-pack-test/xiesunsun-agora-*.tgz
 ```
 
 - [ ] **Step 2: Refresh global Codex assets**
