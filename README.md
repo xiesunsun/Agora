@@ -5,178 +5,153 @@
 <h1 align="center">Agora</h1>
 
 <p align="center">
-  面向 Agent 与人类协作调研的原生交互界面
+  中文 · <a href="./README.en.md">English (Coming Soon)</a>
 </p>
 
 <p align="center">
-  让讨论、编辑、批注、审阅和回收上下文，发生在同一个协作广场里。
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-black" />
+  <img alt="Node.js" src="https://img.shields.io/badge/node.js-22%2B-43853D" />
+  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-10.33.2-F69220" />
+  <img alt="CI" src="https://github.com/xiesunsun/Agora/actions/workflows/ci.yml/badge.svg" />
+  <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue" />
 </p>
 
----
+> Agora 是一个原生面向 Agent 与人类交互的开源协作产品，重新定义了文稿起草、修改、批注与审阅的工作方式，把协作从聊天窗口带回到内容本身。
 
-## 项目简介
+Agora 不是把长文塞回聊天窗口反复改写的工具。它把起草、编辑、批注、推进、审阅和收尾总结组织成一种更符合人类写作习惯的可交互网页协作方式：用户可以直接在文稿页面里修改正文、留下批注、做出判断，不需要把大量上下文重新整理后再发回对话框；Agent 则在后台围绕当前内容持续工作，并把候选改动通过审阅流程交还给用户确认。
 
-`Agora` 取名自古希腊公共讨论广场。
+它适合用于打磨 Spec、PRD、技术方案、研究笔记、说明文档和其他需要“多轮修改 + 人机共同判断”的内容。
 
-这个项目想解决的不是“再做一个聊天窗口”，而是把 **Agent 与人类围绕同一份文稿协作** 这件事，变成一种原生、稳定、可沉淀的交互方式。
+## 一种更适合人类与 Agent 的协作方式
 
-`whiteBoard` 受到 code agent 中 `spec` 文档协作方式的启发，提供一个对 Agent 友好、对人类也友好的网页界面：人类直接在页面中编辑正文、添加批注、发起下一轮推进；Agent 在后台持续跟随、生成候选修改，并通过审阅流程把结果落回文稿。
+### 1. 不再把协作塞回聊天框
 
-对外产品名现在采用 **Agora**。当前仓库目录名仍是 `whiteBoard`，内部 workspace 包名仍沿用 `@blackboard/*`；但面向用户的发布安装路径已经切换为 `agora` CLI。
+很多聊天产品里的画布或 artifacts 功能，本质上仍然要求用户把新的上下文重新组织后发回对话框。Agora 把协作放回文稿本身：用户可以直接在页面里编辑、批注和审阅，不需要反复搬运上下文。
 
-## 解决什么问题
+### 2. 复用现有 Agent 能力，而不是重造一个弱 Agent
 
-### 1. 传统 chat + artifacts 的人机协作体验不够好
+Agora 当前优先适配 Codex。你已经在 Codex 里配置好的工具、skills、工作流和执行能力，都可以带进这条协作文稿链路，而不是退回到一个能力受限的内置聊天 Agent。
 
-在 ChatGPT、Claude、Gemini 等网页端里，类似画布或 artifacts 的能力通常仍依赖聊天窗口承载大量来回沟通。  
-这会导致：
+### 3. 协作线程独立，不污染主任务
 
-- 人类必须把很多本该在页面中直接表达的反馈，再手动转述回 chat
-- Agent 很难稳定获取“页面上的真实修改意图”
-- 讨论信息散落在聊天记录和渲染结果之间，协作成本高
+临时讨论、草稿往返、审阅判断都发生在独立 worker thread 里。协作结束后，再把最终结果和总结回收到 Main Agent，避免把整个迭代过程污染主任务上下文。
 
-Agora 的做法是：**让人类直接在网页里编辑和批注**，把交互本身结构化，而不是把一切重新塞回聊天框。
+### 4. 以 CLI + Skill 交付，方便安装、升级和定制
 
-### 2. 模型厂商自带 Agent 不够开放，难以复用用户已有能力
-
-即使解决了页面交互问题，模型厂商自带的 chat-agent 往往也难以承接用户已经配置好的复杂能力。  
-今天真正有价值的往往不是“一个通用聊天 Agent”，而是用户已经积累好的工具链、skills、workflow 和外部能力。
-
-Agora 当前优先适配 **Codex**，通过 `codex-server` / host adapter / runtime 这条链路，把用户自己在 Codex 中配置的能力引入到协作文稿流程里。
-
-### 3. 临时讨论不应该污染主任务上下文
-
-很多调研、讨论、方案打磨都是临时性的回合式工作。  
-如果把这些迭代过程直接塞进主 Agent 线程，会污染主任务上下文，影响后续执行质量。
-
-Agora 当前通过 Codex 的宿主执行链路，使用 **新的 worker thread** 启动 `whiteBoard-worker` 与人类协作。  
-讨论结束后，再把最终沉淀结果回收给 Main Agent，而不是把整个讨论过程堆进主线程。
-
-### 4. 更适合 Agent 生态的交付方式
-
-Agora 不是一个封闭 SaaS，而是以 **CLI + Skill + 开源源码** 的方式交付。当前对外安装主路径是：
-
-```bash
-npm install -g @xiesunsun/agora
-agora init-codex --force
-agora doctor
-```
-
-这种形态意味着它既能作为终端用户产品安装，也能继续作为源码工程被本地修改和扩展。
-
-CLI + Skill + 开源源码的价值在于：
-
-- 便于安装、升级和本地运行
-- 便于用户替换 Agent 宿主
-- 便于按自己的 workflow 修改源码和 skill
-- 便于逐步扩展到更多 Agent 运行环境
+Agora 通过 CLI 和 Skill 交付，适合真实安装和反复测试。项目完全开源，用户可以按自己的 Agent 宿主、技能体系和工作流继续扩展。
 
 ## 核心亮点
 
-- **原生人机协作文稿界面**：直接面向“编辑正文 + 行内批注 + 审阅改动”设计，而不是把页面当聊天附件。
-- **网页内直接交互**：人类在页面中修改内容即可表达明确判断，不需要手工把上下文搬运回 chat。
-- **Agent 后台持续跟随**：用户编辑、批注、点击 `Proceed` 后，worker 会生成待审阅改动集。
-- **Review 驱动落版**：支持围绕同一份文稿进行 Flow Review / PR Review 式审阅，而不是一次性覆盖输出。
-- **上下文隔离**：临时协作运行在独立 worker thread 中，降低对主任务上下文的污染。
-- **Codex 优先适配**：当前已打通 Codex host path，可复用 Codex skill、runtime 和本地工具能力。
-- **CLI + Skill 交付**：更适合 Agent-native 的安装和分发形式，也更利于二次开发。
-- **完全开源可改造**：用户可以按自己的 Agent、工作流和文档形态进行适配。
-
-## 协作闭环
-
-```text
-Main Agent 创建协作任务
-→ whiteBoard-worker 初始化会话与初稿
-→ 人类在网页中编辑正文 / 添加批注
-→ Agent 在后台跟随并理解修改
-→ 人类点击 Proceed
-→ worker 生成待审阅改动集
-→ 人类审阅并接受 / 拒绝
-→ 形成新版本
-→ 关闭会话并把总结返回 Main Agent
-```
-
-## 系统架构
-
-```mermaid
-flowchart LR
-    U["Human User"] <--> F["Agora Frontend<br/>React + Vite"]
-    F <--> B["Session Backend<br/>HTTP Commands + SSE Events"]
-
-    M["Main Agent"] --> H["Codex Host / codex-server"]
-    H --> A["Host Adapter"]
-    A --> W["whiteBoard-worker"]
-    W --> R["Agora CLI"]
-    R <--> B
-
-    W --> S["Summary / Review Candidate / Session State"]
-    S --> M
-```
-
-## 当前实现形态
-
-当前仓库是一个 monorepo，主要包含：
-
-- `apps/frontend`：人类协作页面，负责正文阅读、编辑、批注、审阅与状态呈现
-- `apps/backend`：会话状态、Working Set、ReviewChangeSet、Version 等核心后端逻辑
-- `apps/host-adapter`：连接 Codex 宿主与会话后端，负责 worker 启动与事件分发
-- `packages/blackboard-runtime`：Agora 公共 npm CLI 的实现目录，负责嵌入运行时产物与 Codex 资产
-- `packages/document-model`：Markdown 到结构化文稿单元的派生与编辑纯函数
-- `packages/review-model`：审阅改动集相关的纯逻辑
-- `docs/`：产品、模型、契约、UI 和 Agent 执行设计文档
+- **围绕文稿本身协作**：以更符合人类习惯的网页交互方式完成正文编辑、批注、推进和审阅，而不是把协作重新塞回聊天窗口。
+- **Agent 跟随当前文稿工作**：用户改完内容后，Agent 可以围绕最新状态继续推进，而不是依赖人工复述上下文。
+- **Proceed -> Review -> Merge 闭环**：从继续生成到审阅候选改动再到合并入稿，流程完整可控。
+- **独立协作线程**：协作运行在独立 worker 中，结束后再把结果回收给 Main Agent。
+- **Codex 优先适配**：当前已打通 Codex App / CLI 工作流，可以直接接入用户现有的 Agent 能力、工具链和技能体系。
+- **开源可扩展**：源码、CLI、Skill 一起交付，方便二次开发和宿主适配。
 
 ## 快速开始
 
-### 1. 发布式安装（面向外部用户）
+### 安装 CLI
 
 ```bash
 npm install -g @xiesunsun/agora
+```
+
+### 初始化 Codex 资产
+
+```bash
 agora init-codex --force
 agora doctor
 ```
 
-Skill 需要安装到：
+### 启动一次协作
 
-```text
-~/.codex/skills/blackboard-collaboration
-```
+在 Codex 中安装并触发 Agora 协作 Skill，或者通过 Agora CLI 拉起完整协作链路。
 
-完整外部安装与协作验证流程见 [docs/05-agent/Agora-Published-E2E-Runbook.md](docs/05-agent/Agora-Published-E2E-Runbook.md)。
+完整安装与使用流程可参考：
 
-### 2. 安装依赖（面向仓库开发）
+- [Agora Published E2E Runbook](./docs/05-agent/Agora-Published-E2E-Runbook.md)
+
+### 本地开发
 
 ```bash
 corepack enable
 pnpm install
-```
-
-### 3. 启动前后端
-
-前端：
-
-```bash
+pnpm build:all
 pnpm dev
-```
-
-后端：
-
-```bash
 pnpm dev:backend
 ```
 
-### 4. 启动 Agent 适配链路
+## 部分运行结果
 
-开发模式下可分别启动：
+### 协作编辑主界面
 
-```bash
-pnpm adapter:dev
-pnpm runtime:dev
-```
+文稿、批注和协作轨道在同一页里展开，用户可以直接围绕当前内容继续编辑和反馈。
 
-构建运行时产物：
+![Agora 协作编辑主界面](./.github/assets/readme/agora-editor.png)
 
-```bash
-pnpm build:all
+### Proceed / 处理中界面
+
+用户发起下一轮推进后，页面会明确展示 Agent 正在继续工作，而不是把等待过程藏在聊天窗口里。
+
+![Agora Proceed 处理中界面](./.github/assets/readme/agora-proceeding.png)
+
+### Flow Review / 流程审阅界面
+
+当协作进入常规审阅流程时，用户可以逐项检查候选改动，再决定是否接纳到当前文稿。
+
+![Agora Flow Review 界面](./.github/assets/readme/agora-flow-review.png)
+
+### PR Review / 变更审阅界面
+
+对于更接近代码审阅心智的改动比较，Agora 也支持以 PR 风格查看和决策。
+
+![Agora PR Review 界面](./.github/assets/readme/agora-pr-review.png)
+
+### History Preview / 历史版本查看
+
+协作过程中形成的版本历史可以被回看和比较，方便追溯每一轮判断和演进。
+
+![Agora History Review 界面](./.github/assets/readme/agora-history-review.png)
+
+### Closed / 会话关闭结果
+
+会话关闭后，文稿会进入只读态，用户仍然可以阅读最终结果并查看本轮协作的收尾状态。
+
+![Agora Closed 界面](./.github/assets/readme/agora-closed.png)
+
+## 适用场景
+
+- 与 Agent 一起打磨 PRD、Spec、技术设计文档
+- 在页面里直接修改 Agent 草稿并给出结构化反馈
+- 进行临时性的研究讨论、方案收敛和协作文稿
+- 在不污染主任务上下文的前提下，开启独立协作线程
+- 为自己的 Agent 系统接入更适合文稿协作的交互层
+
+## 技术栈
+
+- **Frontend**：React、TypeScript、Vite
+- **Backend**：Node.js、TypeScript、HTTP + SSE
+- **Agent Integration**：Codex App / CLI、Host Adapter、Worker Thread
+- **Runtime Delivery**：npm CLI、Codex Skill、嵌入式运行时
+- **Package Manager**：pnpm 10
+
+## 项目结构
+
+```text
+apps/
+  frontend/                 文稿协作前端
+  backend/                  会话状态与审阅流程
+  host-adapter/             Codex 宿主桥接与 worker 分发
+
+packages/
+  blackboard-runtime/       Agora CLI 实现
+  document-model/           文稿结构模型
+  review-model/             审阅与 changeset 模型
+
+docs/                       产品、架构、协议、runbook
+harness/                    smoke 与验证脚本
+scripts/                    本地安装与开发辅助脚本
 ```
 
 ## 测试与验证
@@ -187,44 +162,39 @@ pnpm test:backend
 pnpm test:all
 pnpm typecheck:all
 pnpm build:all
-pnpm e2e
-pnpm harness:check
-```
-
-完整 MVP 验证顺序可参考 [docs/05-agent/MVP-Runbook.md](docs/05-agent/MVP-Runbook.md)。
-
-发布安装 smoke：
-
-```bash
 pnpm run smoke:agora
 ```
 
-## 文档导航
+常用文档：
 
-- [docs/README.md](docs/README.md)：完整文档索引
-- [docs/01-product/Product-Overview.md](docs/01-product/Product-Overview.md)：产品总览
-- [docs/Developer-Guide.md](docs/Developer-Guide.md)：开发者快速入门
-- [docs/Developer-Iteration-Guide.md](docs/Developer-Iteration-Guide.md)：快速迭代开发指南（CLI + Skill + Worker Config 重装与测试流程）
-- [docs/05-agent/Host-Execution-Design.md](docs/05-agent/Host-Execution-Design.md)：Codex 宿主执行设计
-- [docs/03-contracts/Agent-CLI.md](docs/03-contracts/Agent-CLI.md)：Agent CLI 契约
+- [Developer Guide](./docs/Developer-Guide.md)
+- [Developer Iteration Guide](./docs/Developer-Iteration-Guide.md)
+- [Agora Published E2E Runbook](./docs/05-agent/Agora-Published-E2E-Runbook.md)
+- [Product Overview](./docs/01-product/Product-Overview.md)
+- [Host Execution Design](./docs/05-agent/Host-Execution-Design.md)
+- [Agent CLI Contract](./docs/03-contracts/Agent-CLI.md)
 
-## 适用场景
+## 后续发展路线
 
-- 与 Agent 一起打磨 PRD、spec、技术设计文档
-- 进行临时性的研究讨论与方案收敛
-- 让人类直接在页面上对 Agent 草稿做结构化反馈
-- 在不污染主任务上下文的前提下，开一个独立协作线程
-- 为自己的 Agent 体系接入一个更适合文稿协作的交互层
+- [ ] 优化 worker Agent 启动时间
+- [ ] 优化 session 关闭时间延迟
+- [ ] 解决 worker Agent 返回 Main Agent 的显示问题
+- [ ] 支持 Claude Code、Pickle 等更多 Agent
+- [ ] 支持富文本与多模态数据协作迭代
+- [ ] 支持自定义协作页面主题
+- [ ] 支持自定义 comment state 图标
+- [ ] 支持 comment state 图标简略显示后台 Agent 意见
+- [ ] 支持更接近 Git 心智的文档版本管理方式
+- [ ] 支持多人协作
+- [ ] 增加协作页面内的 chat-to-worker Agent 功能
 
-## 命名说明
+## 开源状态
 
-- **产品名**：`Agora`
-- **仓库目录名**：`whiteBoard`
-- **内部包名**：`@blackboard/*`
-- **发布 CLI**：`agora`
-
-如果后续需要统一品牌命名，可以再做一轮工程级重命名；当前这份 README 先统一对外表达。
+- **当前版本**：`0.1.0`
+- **npm 包名**：`@xiesunsun/agora`
+- **全局命令**：`agora`
+- **许可证**：`Apache-2.0`
 
 ## License
 
-本项目当前未在仓库根目录声明单独的许可证文件；如需对外发布，建议补充明确的 `LICENSE`。
+This repository is licensed under [Apache-2.0](./LICENSE).

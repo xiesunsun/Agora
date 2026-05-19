@@ -13,15 +13,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xiesunsun/whiteBoard.git"
+    "url": "git+https://github.com/xiesunsun/Agora.git"
   },
+  "license": "Apache-2.0",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "homepage": "https://github.com/xiesunsun/whiteBoard#readme",
+  "homepage": "https://github.com/xiesunsun/Agora#readme",
   "bugs": {
-    "url": "https://github.com/xiesunsun/whiteBoard/issues"
+    "url": "https://github.com/xiesunsun/Agora/issues"
   },
   "scripts": {
     "build": "pnpm --dir ../.. --filter @blackboard/document-model build && pnpm --dir ../.. --filter @blackboard/review-model build && pnpm --dir ../.. --filter @blackboard/backend build && pnpm --dir ../.. --filter @blackboard/host-adapter build && pnpm --dir ../.. --filter @blackboard/frontend build && tsc && node dist/buildRuntimeAssets.js",
