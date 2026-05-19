@@ -1,18 +1,18 @@
 ---
 name: blackboard-collaboration
 description: >
-  Use this skill when the task involves collaborative text editing with a human
-  in a Blackboard session: drafting, revising, or iterating on a document with
-  human review and annotation. Triggers on requests to open a blackboard, start
-  a writing collaboration, create a shared document session, or work on a text
-  with human-in-the-loop review cycles.
+  Use this skill when acting as the main agent and the user asks to start
+  collaborative text editing with a human in an Agora session. Triggers on
+  requests to open a blackboard, start a writing collaboration, create a shared
+  document session, or work on a text with human-in-the-loop review cycles.
 ---
 
-# Blackboard Collaboration Skill
+# Agora Collaboration Skill
 
 ## When to use this skill
 
 Use this skill when:
+- You are the main agent preparing or starting an Agora collaboration session
 - The task requires creating or iterating on a document with human review
 - The human wants to annotate, comment, or directly edit a shared text
 - The task involves a Proceed → Review → Accept/Reject cycle
@@ -39,7 +39,7 @@ You are the **main agent**. Your job here is to:
 Main-agent boundary:
 - Do not write the full article or full starting draft yourself unless the human explicitly asked for your exact wording
 - Do not spend startup turns exploring repo implementation details for routine session startup
-- Do not manually orchestrate low-level runtime steps when `blackboard-runtime start-session` can do it for you
+- Do not manually orchestrate low-level runtime steps when `agora start-session` can do it for you
 - The subagent owns first-draft creation, session creation, and ongoing collaboration inside the blackboard
 
 ## Automatic startup policy
@@ -48,18 +48,21 @@ Use the high-level startup command first. Do not begin with low-level preflight 
 
 Default behavior in a new folder should be:
 1. Materialize the main-agent handoff into a local file
-2. Start the real session with `blackboard-runtime start-session --handoff-file {handoffFile}`
-3. Wait for the command to return real `sessionId`, `frontendUrl`, and `subagentThreadId`
-4. Only then tell the human that blackboard collaboration is ready
+2. Treat that absolute handoff file path as the startup transport unit
+3. Start the real session with `agora start-session --handoff-file {handoffFile}`
+4. Wait for the command to return real `sessionId`, `frontendUrl`, and `subagentThreadId`
+5. Only then tell the human that blackboard collaboration is ready
+
+`--json-out` is optional tooling and debug plumbing. It is not part of the ordinary user-facing startup flow, and the main agent should not ask the human to manage startup JSON files just to begin collaboration.
 
 Ordinary chat collaboration is a fallback path, not the default path.
 
-`blackboard-runtime start-session` already owns runtime startup and health checking. Treat `status` and `up` as debugging or recovery commands unless the high-level command has already failed.
+`agora start-session` already owns runtime startup and health checking. Treat `status` and `up` as debugging or recovery commands unless the high-level command has already failed.
 
 ## Runtime gate
 
 Before you claim that blackboard collaboration has started, verify these conditions:
-- The live runtime health endpoint is reachable via `blackboard-runtime status` or `GET {backendUrl}/cli/health`
+- The live runtime health endpoint is reachable via `agora status` or `GET {backendUrl}/cli/health`
 - Treat the returned `backendUrl` and `frontendUrl` as the source of truth for this session
 - The spawned worker has completed the startup turn and returned a real `sessionId`
 - The spawned worker has returned a real frontend URL in the form `{frontendUrl}?sessionId={sessionId}`
@@ -71,13 +74,15 @@ If these conditions are not met, do not pretend that a live blackboard session e
 Use the global runtime command, not repo-local `pnpm` scripts:
 
 ```bash
-blackboard-runtime start-session --handoff-file {handoffFile}
+agora start-session --handoff-file {handoffFile}
 ```
 
 Operational rules:
-- `blackboard-runtime start-session` is the preferred high-level entrypoint for main agents
-- `blackboard-runtime status`, `up`, and `adapter` are low-level debugging or manual-recovery commands; do not prefer them when `start-session` can be used
-- When working from an arbitrary folder, treat the current working directory as the worker workspace root
+- `agora start-session` is the preferred high-level entrypoint for main agents
+- Do not require `--json-out` for ordinary interactive startup; reserve it for automation, diagnostics, or wrapper scripts
+- `agora status`, `up`, and `adapter` are low-level debugging or manual-recovery commands; do not prefer them when `start-session` can be used
+- The caller's current directory is only where the handoff file may live; do not treat it as the worker workspace root
+- Worker-private files belong under the runtime-provided `workspaceRoot`, which `agora start-session` creates inside the configured worker workspace
 - If `start-session` blocks for multiple minutes, keep waiting unless it has concretely failed or timed out
 - Do not claim startup failure just because the worker startup turn is slow; session bootstrap may take several minutes
 - If `start-session` returns `ok: false`, treat startup as blocked and surface that failure directly; do not drop into repo exploration, log archaeology, or manual `resume/send_input/wait` recovery inside the ordinary main-agent turn
@@ -143,7 +148,7 @@ When the session closes, return a summary including:
 
 ## After worker startup
 
-Once `blackboard-runtime start-session` returns `sessionId` and `frontendUrl`:
+Once `agora start-session` returns `sessionId` and `frontendUrl`:
 
 1. Treat the returned `subagentThreadId` as the durable worker thread for this session
 2. Share the `frontendUrl` with the human so they can open the collaboration page
@@ -152,6 +157,8 @@ Once `blackboard-runtime start-session` returns `sessionId` and `frontendUrl`:
 ## After the session
 
 When the blackboard worker returns its summary:
+- Expect the close completion to arrive on the original main thread as a normal message after the host waits for that relay turn to finish
+- Read the returned `summaryPath` and `finalDocumentPath` files; those absolute paths are the authoritative close artifacts
 - Incorporate the final document content into the parent task
 - Address any unresolved items flagged by the worker
 - Continue the parent task flow
@@ -170,6 +177,6 @@ Required behavior:
 - A single obligation failure must not be treated as a reason to stop the entire session runtime
 
 Failure handling:
-- If `blackboard-runtime start-session` fails, report that the session startup is blocked
+- If `agora start-session` fails, report that the session startup is blocked
 - If the worker cannot obtain a `sessionId`, do not claim that collaboration has started
 - Only fall back to ordinary chat after `start-session` has failed in a concrete and user-visible way

@@ -1,7 +1,7 @@
 interface:
-  display_name: "Blackboard Collaboration"
-  short_description: "Open and run a live Blackboard session"
-  default_prompt: "Use $blackboard-collaboration to create a live Blackboard session, return the session link, and collaborate through the blackboard page."
+  display_name: "Agora Collaboration"
+  short_description: "Open and run a live Agora session"
+  default_prompt: "Use $blackboard-collaboration to create a live Agora session, return the session link, and collaborate through the collaboration page."
 
 policy:
   allow_implicit_invocation: true
