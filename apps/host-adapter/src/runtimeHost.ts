@@ -1,11 +1,12 @@
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentTurnResult, HostControls, SpawnAgentResult } from "./types.js";
+import { resolveWorkerSessionWorkspace } from "./workerWorkspace.js";
 
 type JsonRpcId = number;
 
@@ -99,6 +100,7 @@ export class CodexAppServerHost implements HostControls {
       backendUrl: this.backendUrl,
       frontendUrl: this.frontendUrl,
       workspaceRoot: this.workspaceRoot,
+      agoraCliInvocation: process.env.AGORA_CLI_INVOCATION ?? "agora",
     });
   }
 
@@ -135,7 +137,11 @@ export class CodexAppServerHost implements HostControls {
         threadId: subagentThreadId,
         turnId: tracked.turnId,
       });
-      return tracked.promise;
+      return tracked.promise.catch((error) => {
+        throw annotateThreadOperationError("waitAgent", subagentThreadId, error, {
+          hasBufferedCompletedTurn: this.completedTurnResultsByThread.has(subagentThreadId),
+        });
+      });
     }
 
     const completed = this.completedTurnResultsByThread.get(subagentThreadId);
@@ -148,7 +154,9 @@ export class CodexAppServerHost implements HostControls {
       return completed;
     }
 
-    throw new Error(`No active turn found for thread ${subagentThreadId}`);
+    throw new Error(
+      `[runtime-host] waitAgent failed for thread ${subagentThreadId}: no active turn found (hasBufferedCompletedTurn=false)`,
+    );
   }
 
   private async startTurn(threadId: string, message: string): Promise<void> {
@@ -167,6 +175,10 @@ export class CodexAppServerHost implements HostControls {
       cwd: this.workspaceRoot,
       approvalPolicy: "never",
       sandboxPolicy: buildSandboxPolicy(this.workerConfig.sandboxMode, this.workspaceRoot),
+    }).catch((error) => {
+      throw annotateThreadOperationError("turn/start", threadId, error, {
+        hasBufferedCompletedTurn: this.completedTurnResultsByThread.has(threadId),
+      });
     });
 
     const turnId = turnStart.turn.id;
@@ -204,6 +216,10 @@ export class CodexAppServerHost implements HostControls {
       approvalPolicy: "never",
       sandbox: this.workerConfig.sandboxMode,
       developerInstructions: this.developerInstructions,
+    }).catch((error) => {
+      throw annotateThreadOperationError("thread/resume", threadId, error, {
+        hasBufferedCompletedTurn: this.completedTurnResultsByThread.has(threadId),
+      });
     });
     this.resumedThreads.add(threadId);
   }
@@ -500,11 +516,7 @@ function defaultSpawnProcess(): AppServerProcess {
 }
 
 function resolveWorkerWorkspace(explicit?: string): string {
-  if (explicit) return explicit;
-  if (process.env.BLACKBOARD_WORKER_WORKSPACE) return process.env.BLACKBOARD_WORKER_WORKSPACE;
-  const dir = join(tmpdir(), "blackboard-worker", `session-${Date.now()}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
+  return resolveWorkerSessionWorkspace(explicit);
 }
 
 function ensureItemTracked(tracked: TrackedTurn, itemId: string): void {
@@ -512,6 +524,18 @@ function ensureItemTracked(tracked: TrackedTurn, itemId: string): void {
     tracked.itemOrder.push(itemId);
     tracked.itemTexts.set(itemId, "");
   }
+}
+
+function annotateThreadOperationError(
+  operation: "thread/resume" | "turn/start" | "waitAgent",
+  threadId: string,
+  error: unknown,
+  details: { hasBufferedCompletedTurn: boolean },
+): Error {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  return new Error(
+    `[runtime-host] ${operation} failed for thread ${threadId} (hasBufferedCompletedTurn=${details.hasBufferedCompletedTurn}): ${baseMessage}`,
+  );
 }
 
 function buildSandboxPolicy(
@@ -571,17 +595,22 @@ function buildDeveloperInstructions({
   backendUrl,
   frontendUrl,
   workspaceRoot,
+  agoraCliInvocation,
 }: {
   baseInstructions: string;
   backendUrl: string;
   frontendUrl: string;
   workspaceRoot: string;
+  agoraCliInvocation: string;
 }): string {
   return [
     "## Runtime Context",
     `For this session, use backendUrl=${backendUrl} for all CLI HTTP calls.`,
     `For this session, use frontendUrl=${frontendUrl} as the collaboration page base URL.`,
     `For this session, use workspaceRoot=${workspaceRoot} as the local session workspace root.`,
+    `For this session, use agoraCliInvocation=${agoraCliInvocation} as the exact Agora CLI command prefix.`,
+    "Do not search the shell PATH for agora or blackboard-runtime when agoraCliInvocation is provided.",
+    "Append the required subcommand and flags to agoraCliInvocation exactly as written.",
     "These runtime values are authoritative and override any hardcoded defaults mentioned elsewhere.",
     "",
     baseInstructions,

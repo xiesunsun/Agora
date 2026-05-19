@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable, PassThrough } from "node:stream";
@@ -10,6 +10,7 @@ class FakeAppServerProcess extends EventEmitter {
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
   readonly seenMethods: string[] = [];
+  readonly requests: Array<{ method: string; params: Record<string, unknown> }> = [];
   private turnCounter = 0;
 
   readonly stdin = new Writable({
@@ -29,6 +30,7 @@ class FakeAppServerProcess extends EventEmitter {
 
   private handleRequest(request: { id?: number; method: string; params: Record<string, unknown> }): void {
     this.seenMethods.push(request.method);
+    this.requests.push({ method: request.method, params: request.params });
 
     // JSON-RPC notifications have no `id` and do not expect a response.
     if (request.id === undefined) {
@@ -96,9 +98,15 @@ describe("CodexAppServerHost", () => {
   let fakeProcess: FakeAppServerProcess;
   let tempDir: string;
   let workerConfigPath: string;
+  let previousWorkerWorkspace: string | undefined;
+  let previousSessionWorkspace: string | undefined;
 
   beforeEach(() => {
     fakeProcess = new FakeAppServerProcess();
+    previousWorkerWorkspace = process.env.BLACKBOARD_WORKER_WORKSPACE;
+    previousSessionWorkspace = process.env.BLACKBOARD_SESSION_WORKSPACE;
+    delete process.env.BLACKBOARD_WORKER_WORKSPACE;
+    delete process.env.BLACKBOARD_SESSION_WORKSPACE;
     tempDir = mkdtempSync(join(tmpdir(), "blackboard-runtime-host-test-"));
     workerConfigPath = join(tempDir, "blackboard-worker.toml");
     writeFileSync(
@@ -114,13 +122,23 @@ describe("CodexAppServerHost", () => {
   });
 
   afterEach(() => {
+    if (previousWorkerWorkspace === undefined) {
+      delete process.env.BLACKBOARD_WORKER_WORKSPACE;
+    } else {
+      process.env.BLACKBOARD_WORKER_WORKSPACE = previousWorkerWorkspace;
+    }
+    if (previousSessionWorkspace === undefined) {
+      delete process.env.BLACKBOARD_SESSION_WORKSPACE;
+    } else {
+      process.env.BLACKBOARD_SESSION_WORKSPACE = previousSessionWorkspace;
+    }
     rmSync(tempDir, { recursive: true, force: true });
   });
 
   test("spawnAgent starts a thread and waits for the startup turn", async () => {
     const host = new CodexAppServerHost({
       spawnProcess: () => fakeProcess,
-      workspaceRoot: "/workspace",
+      workspaceRoot: join(tempDir, "workspace"),
       workerConfigPath,
     });
 
@@ -135,10 +153,32 @@ describe("CodexAppServerHost", () => {
     expect(fakeProcess.seenMethods).toEqual(["initialize", "initialized", "thread/start", "turn/start"]);
   });
 
+  test("uses a per-session child directory under BLACKBOARD_WORKER_WORKSPACE", async () => {
+    const workerWorkspaceParent = join(tempDir, "worker-parent");
+    process.env.BLACKBOARD_WORKER_WORKSPACE = workerWorkspaceParent;
+
+    const host = new CodexAppServerHost({
+      spawnProcess: () => fakeProcess,
+      workerConfigPath,
+    });
+
+    await host.spawnAgent("start blackboard");
+
+    const threadStart = fakeProcess.requests.find((request) => request.method === "thread/start");
+    expect(threadStart?.params.cwd).toEqual(expect.stringMatching(
+      new RegExp(`^${escapeRegExp(workerWorkspaceParent)}/session-`),
+    ));
+    expect(existsSync(threadStart?.params.cwd as string)).toBe(true);
+    expect(threadStart?.params.cwd).not.toBe(workerWorkspaceParent);
+    expect(threadStart?.params.developerInstructions).toEqual(expect.stringContaining(
+      `workspaceRoot=${threadStart?.params.cwd}`,
+    ));
+  });
+
   test("sendInput resumes unknown threads before starting a turn", async () => {
     const host = new CodexAppServerHost({
       spawnProcess: () => fakeProcess,
-      workspaceRoot: "/workspace",
+      workspaceRoot: join(tempDir, "workspace"),
       workerConfigPath,
     });
 
@@ -150,3 +190,7 @@ describe("CodexAppServerHost", () => {
     expect(fakeProcess.seenMethods).toEqual(["initialize", "initialized", "thread/resume", "turn/start"]);
   });
 });
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

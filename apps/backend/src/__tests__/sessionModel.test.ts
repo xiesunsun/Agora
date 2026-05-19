@@ -164,7 +164,11 @@ describe("startProceeding", () => {
 describe("closeSession", () => {
   test("sets status to closed", () => {
     const snap = makeSnapshot();
-    const next = closeSession(snap);
+    const next = closeSession(snap, {
+      summaryPath: "/tmp/summary.md",
+      finalDocumentPath: "/tmp/final.md",
+      closedAt: "2026-05-19T00:00:00.000Z",
+    });
     expect(next.sessionStatus).toBe("closed");
   });
 
@@ -172,8 +176,27 @@ describe("closeSession", () => {
     const snap = makeSnapshot();
     const unit = snap.documentUnits[1];
     const withBullet = createDocumentUnitComment(snap, unit.unitId, "锚点", "批注");
-    const next = closeSession(withBullet);
+    const next = closeSession(withBullet, {
+      summaryPath: "/tmp/summary.md",
+      finalDocumentPath: "/tmp/final.md",
+      closedAt: "2026-05-19T00:00:00.000Z",
+    });
     expect(next.activeBullets).toHaveLength(0);
     expect(next.proceeding).toBeNull();
+  });
+
+  test("persists closeResult metadata", () => {
+    const snap = makeSnapshot();
+    const next = closeSession(snap, {
+      summaryPath: "/tmp/summary.md",
+      finalDocumentPath: "/tmp/final.md",
+      closedAt: "2026-05-19T00:00:00.000Z",
+    });
+
+    expect(next.closeResult).toEqual({
+      summaryPath: "/tmp/summary.md",
+      finalDocumentPath: "/tmp/final.md",
+      closedAt: "2026-05-19T00:00:00.000Z",
+    });
   });
 });

@@ -5,6 +5,7 @@ import { documentUnitsFromMarkdown } from "./markdownDocument.js";
 
 const sessions = new Map<string, SessionSnapshot>();
 const historyVersions = new Map<string, Map<string, HistoryVersionPayload>>();
+const OPEN_SESSION_STATUSES = new Set(["active", "proceeding", "reviewing"]);
 
 const V1_CONTENT = `# 批评作为一种同行写作
 
@@ -87,6 +88,31 @@ export function setSession(sessionId: string, snapshot: SessionSnapshot): Sessio
   return s;
 }
 
+export function listSessions(): SessionSnapshot[] {
+  return Array.from(sessions.values());
+}
+
+export function isRealCollaborationSession(snapshot: SessionSnapshot): boolean {
+  return snapshot.sessionId !== "demo";
+}
+
+export function listOpenSessions(options: { includeDemo?: boolean } = {}): SessionSnapshot[] {
+  const includeDemo = options.includeDemo ?? true;
+  return listSessions().filter((snapshot) => {
+    if (!OPEN_SESSION_STATUSES.has(snapshot.sessionStatus)) {
+      return false;
+    }
+    if (!includeDemo && !isRealCollaborationSession(snapshot)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+export function hasOpenSessions(options: { includeDemo?: boolean } = {}): boolean {
+  return listOpenSessions(options).length > 0;
+}
+
 export function getOrCreateDemoSession(): SessionSnapshot {
   if (!getSession("demo")) {
     const snapshot: SessionSnapshot = {
@@ -149,12 +175,6 @@ export function saveHistoryVersion(sessionId: string, payload: HistoryVersionPay
 // ─── Dispatch queue ──────────────────────────────────────────────────────────
 
 const dispatchQueues = new Map<string, DispatchEvent[]>();
-const DISPATCH_EVENTS_DIR = join(
-  process.env.HOME ?? process.env.USERPROFILE ?? "~",
-  ".blackboard",
-  "events",
-);
-
 export function enqueueDispatchEvent(event: DispatchEvent): void {
   if (!dispatchQueues.has(event.sessionId)) dispatchQueues.set(event.sessionId, []);
   dispatchQueues.get(event.sessionId)!.push(event);
@@ -209,9 +229,11 @@ function appendDispatchStatusChange(
   fromStatus: DispatchEventStatus,
   toStatus: DispatchEventStatus,
 ): void {
+  if (!isEventsLogEnabled()) return;
   try {
-    mkdirSync(DISPATCH_EVENTS_DIR, { recursive: true });
-    const file = join(DISPATCH_EVENTS_DIR, `${event.sessionId}.jsonl`);
+    const eventsDir = getEventsDir();
+    mkdirSync(eventsDir, { recursive: true });
+    const file = join(eventsDir, `${event.sessionId}.jsonl`);
     appendFileSync(
       file,
       JSON.stringify({
@@ -228,4 +250,13 @@ function appendDispatchStatusChange(
   } catch {
     // Debug mirror only; queue state remains authoritative.
   }
+}
+
+function isEventsLogEnabled(): boolean {
+  return ["1", "true", "yes", "on"].includes((process.env.BLACKBOARD_EVENTS_LOG_ENABLED ?? "").toLowerCase());
+}
+
+function getEventsDir(): string {
+  return process.env.BLACKBOARD_EVENTS_DIR
+    ?? join(process.env.XDG_STATE_HOME ?? join(process.env.HOME ?? process.env.USERPROFILE ?? "~", ".local", "state"), "blackboard", "events");
 }

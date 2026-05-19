@@ -10,7 +10,18 @@
  */
 
 import type { BackendClient } from "./backendClient.js";
-import type { HostControls } from "./types.js";
+import {
+  createEmptyRelayDiagnosticStages,
+  createRelayDiagnosticRecord,
+  writeRelayDiagnosticRecord,
+} from "./relayDiagnostics.js";
+import type {
+  AgentTurnResult,
+  CloseResult,
+  HostControls,
+  RelayDiagnosticOutcome,
+  SessionSnapshot,
+} from "./types.js";
 import { verifyObligation } from "./obligationVerifier.js";
 
 const POLL_INTERVAL_MS = 2000;
@@ -21,12 +32,31 @@ export interface EventLoopOptions {
   subagentThreadId: string;
   client: BackendClient;
   host: HostControls;
+  mainThreadId?: string;
+  relayDiagnosticsFilePath?: string;
+  onRuntimeShutdown?: () => Promise<void> | void;
   /** Called when the session is closed (close event handled). */
-  onClose?: () => void;
+  onClose?: (result: CloseEventResult) => Promise<void> | void;
+}
+
+export interface CloseEventResult {
+  sessionId: string;
+  closeTurnOutput: string;
+  snapshot: SessionSnapshot;
+  shouldShutdownRuntime: boolean;
 }
 
 export async function runEventLoop(opts: EventLoopOptions): Promise<void> {
-  const { sessionId, subagentThreadId, client, host, onClose } = opts;
+  const {
+    sessionId,
+    subagentThreadId,
+    client,
+    host,
+    mainThreadId,
+    relayDiagnosticsFilePath,
+    onRuntimeShutdown,
+    onClose,
+  } = opts;
   console.log(`[event-loop] started for session=${sessionId} thread=${subagentThreadId}`);
 
   while (true) {
@@ -40,7 +70,12 @@ export async function runEventLoop(opts: EventLoopOptions): Promise<void> {
       const snapshot = await client.getSnapshot(sessionId).catch(() => null);
       if (snapshot?.sessionStatus === "closed") {
         console.log(`[event-loop] session ${sessionId} is closed, exiting`);
-        onClose?.();
+        await onClose?.({
+          sessionId,
+          closeTurnOutput: "",
+          snapshot,
+          shouldShutdownRuntime: false,
+        });
         return;
       }
       await sleep(POLL_INTERVAL_MS);
@@ -49,6 +84,7 @@ export async function runEventLoop(opts: EventLoopOptions): Promise<void> {
 
     const event = pending[0]!;
     console.log(`[event-loop] processing event ${event.eventId} (${event.eventType})`);
+    let closeTurnOutput = "";
 
     // Claim the event (pending → delivering)
     const claimed = await client.claimEvent(sessionId, event.eventId).catch((err: unknown) => {
@@ -67,6 +103,7 @@ export async function runEventLoop(opts: EventLoopOptions): Promise<void> {
       if (turnResult.status !== "completed") {
         throw new Error(`worker turn ended with status=${turnResult.status}`);
       }
+      closeTurnOutput = turnResult.outputText;
     } catch (err) {
       console.error(`[event-loop] delivery failed for ${event.eventId}:`, err);
       await client.failEvent(sessionId, event.eventId, String(err));
@@ -123,7 +160,28 @@ export async function runEventLoop(opts: EventLoopOptions): Promise<void> {
 
       // If this was a close event, exit
       if (event.eventType === "session.close_requested") {
-        onClose?.();
+        const snapshot = await client.getSnapshot(sessionId);
+        await relayCloseResultToMainThread({
+          host,
+          sessionId,
+          mainThreadId,
+          closeResult: snapshot.closeResult,
+          relayDiagnosticsFilePath,
+        });
+        const shouldShutdownRuntime = await shouldShutdownAfterClose(client);
+        if (shouldShutdownRuntime) {
+          try {
+            await onRuntimeShutdown?.();
+          } catch (error) {
+            console.error("[event-loop] runtime shutdown callback failed:", error);
+          }
+        }
+        await onClose?.({
+          sessionId,
+          closeTurnOutput,
+          snapshot,
+          shouldShutdownRuntime,
+        });
         return;
       }
     } else {
@@ -139,6 +197,128 @@ export async function runEventLoop(opts: EventLoopOptions): Promise<void> {
       continue;
     }
   }
+}
+
+async function shouldShutdownAfterClose(client: BackendClient): Promise<boolean> {
+  try {
+    return !(await client.hasOpenSessions());
+  } catch (error) {
+    console.error("[event-loop] failed to query open session state:", error);
+    return false;
+  }
+}
+
+function buildCloseResultMessage(sessionId: string, closeResult: CloseResult): string {
+  return [
+    "Agora session closed.",
+    "",
+    "Read these files for the final result:",
+    `- summary: ${closeResult.summaryPath}`,
+    `- final document: ${closeResult.finalDocumentPath}`,
+    "",
+    `These files are the authoritative close artifacts for session ${sessionId}.`,
+  ].join("\n");
+}
+
+async function relayCloseResultToMainThread(
+  options: {
+    host: HostControls;
+    mainThreadId?: string;
+    sessionId: string;
+    closeResult?: CloseResult;
+    relayDiagnosticsFilePath?: string;
+  },
+): Promise<void> {
+  const {
+    host,
+    mainThreadId,
+    sessionId,
+    closeResult,
+    relayDiagnosticsFilePath,
+  } = options;
+  const stages = createEmptyRelayDiagnosticStages();
+  stages.hasCloseResult = Boolean(closeResult);
+  stages.hasMainThreadId = Boolean(mainThreadId);
+  let outcome: RelayDiagnosticOutcome;
+  let relayTurnStatus: AgentTurnResult["status"] | null = null;
+  let relayError: unknown;
+
+  try {
+    if (!closeResult) {
+      outcome = "close_result_missing";
+      return;
+    }
+    if (!mainThreadId) {
+      outcome = "mainThreadId_missing";
+      return;
+    }
+
+    stages.sendInputAttempted = true;
+    console.log(
+      `[event-loop] close relay session=${sessionId} mainThreadId=${mainThreadId} stage=send_input diagnostics=${formatDiagnosticsPath(relayDiagnosticsFilePath)}`,
+    );
+    await host.sendInput(
+      mainThreadId,
+      buildCloseResultMessage(sessionId, closeResult),
+    );
+    stages.sendInputSucceeded = true;
+    stages.waitAgentAttempted = true;
+    const relayTurn = await host.waitAgent(mainThreadId);
+    relayTurnStatus = relayTurn.status;
+    if (relayTurn.status !== "completed") {
+      outcome = "relay_turn_not_completed";
+      relayError = new Error(`main-thread close relay ended with status=${relayTurn.status}`);
+      return;
+    }
+    stages.waitAgentCompleted = true;
+    outcome = "relay_completed";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (stages.waitAgentAttempted && !stages.waitAgentCompleted) {
+      outcome = "wait_agent_failed";
+      relayError = new Error(message);
+    } else {
+      outcome = "send_input_failed";
+      relayError = new Error(message);
+    }
+  } finally {
+    const record = createRelayDiagnosticRecord({
+      sessionId,
+      mainThreadId,
+      outcome: outcome!,
+      stages,
+      relayTurnStatus,
+      closeResult,
+      error: relayError,
+    });
+    const diagnosticsPath = relayDiagnosticsFilePath
+      ? writeRelayDiagnosticRecord(relayDiagnosticsFilePath, record)
+      : null;
+    const diagnosticsLabel = formatDiagnosticsPath(diagnosticsPath ?? relayDiagnosticsFilePath);
+
+    if (record.outcome === "relay_completed") {
+      console.log(
+        `[event-loop] close relay session=${sessionId} mainThreadId=${mainThreadId} outcome=${record.outcome} diagnostics=${diagnosticsLabel}`,
+      );
+      return;
+    }
+
+    const message = [
+      `[event-loop] close relay session=${sessionId}`,
+      `mainThreadId=${mainThreadId ?? "(missing)"}`,
+      `outcome=${record.outcome}`,
+      `diagnostics=${diagnosticsLabel}`,
+    ].join(" ");
+    if (record.error) {
+      console.error(message, new Error(record.error.message));
+      return;
+    }
+    console.warn(message);
+  }
+}
+
+function formatDiagnosticsPath(relayDiagnosticsFilePath?: string | null): string {
+  return relayDiagnosticsFilePath ?? "(disabled)";
 }
 
 function buildObligationRemediationMessage(event: { eventType: string; eventId: string; message: string }, reason: string): string {

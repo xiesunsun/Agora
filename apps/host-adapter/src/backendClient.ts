@@ -47,6 +47,11 @@ export class BackendClient {
     return result.events;
   }
 
+  async hasOpenSessions(): Promise<boolean> {
+    const result = await this.get<{ hasOpenSessions: boolean }>("/cli/sessions?status=open");
+    return result.hasOpenSessions;
+  }
+
   async claimEvent(sessionId: string, eventId: string): Promise<boolean> {
     try {
       await this.post(`/cli/sessions/${sessionId}/dispatch-events/${eventId}/claim`, {});

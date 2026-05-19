@@ -2,6 +2,7 @@ import { diffArrays, diffWords } from "diff";
 import type {
   Bullet,
   Change,
+  CloseResult,
   DocumentUnit,
   HistoryVersionPayload,
   ProceedingStage,
@@ -137,8 +138,14 @@ export function completeProceeding(snapshot: SessionSnapshot, changeSet: ReviewC
   };
 }
 
-export function closeSession(snapshot: SessionSnapshot): SessionSnapshot {
-  return { ...snapshot, sessionStatus: "closed", proceeding: null, activeBullets: [] };
+export function closeSession(snapshot: SessionSnapshot, closeResult: CloseResult): SessionSnapshot {
+  return {
+    ...snapshot,
+    sessionStatus: "closed",
+    proceeding: null,
+    activeBullets: [],
+    closeResult,
+  };
 }
 
 export function resolveReviewChange(

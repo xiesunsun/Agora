@@ -15,7 +15,7 @@
  * runtime environment (spawn_agent / send_input / wait_agent tools).
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { BackendClient } from "./backendClient.js";
@@ -72,8 +72,11 @@ async function main(): Promise<{ readyFile?: string }> {
   const sessionId = get("--session");
   const threadId = get("--thread");
   const handoffFile = get("--handoff-file");
+  const handoffFilePath = handoffFile ? path.resolve(handoffFile) : undefined;
   const readyFile = get("--ready-file");
   const useStub = has("--stub-host");
+  const mainThreadId = process.env.MAIN_THREAD_ID || undefined;
+  const relayDiagnosticsDir = process.env.BLACKBOARD_RELAY_DIAGNOSTICS_DIR || undefined;
 
   if ((sessionId && !threadId) || (!sessionId && threadId)) {
     console.error("Usage: host-adapter [--handoff-file <path>] [--session <sessionId> --thread <subagentThreadId>] [--stub-host]");
@@ -81,6 +84,10 @@ async function main(): Promise<{ readyFile?: string }> {
   }
   if (useStub && (!sessionId || !threadId)) {
     console.error("--stub-host requires --session and --thread because it does not create real sessions");
+    process.exit(1);
+  }
+  if (handoffFilePath && !existsSync(handoffFilePath)) {
+    console.error(`handoff file not found: ${handoffFilePath}`);
     process.exit(1);
   }
 
@@ -116,11 +123,12 @@ async function main(): Promise<{ readyFile?: string }> {
     : await bootstrapSession(
       client,
       host,
-      handoffFile ? readFileSync(handoffFile, "utf8") : undefined,
+      handoffFilePath,
     );
+  const relayDiagnosticsFile = buildRelayDiagnosticsFile(relayDiagnosticsDir, info.sessionId);
 
   if (readyFile) {
-    writeReadyFileSuccess(readyFile, info, BACKEND_URL);
+    writeReadyFileSuccess(readyFile, info, BACKEND_URL, relayDiagnosticsFile ?? null);
   }
   console.log(`[adapter] session=${info.sessionId} frontend=${info.frontendUrl}`);
 
@@ -130,12 +138,14 @@ async function main(): Promise<{ readyFile?: string }> {
     subagentThreadId: info.subagentThreadId,
     client,
     host,
-    onClose: () => {
-      console.log("[adapter] session closed — exiting");
+    mainThreadId,
+    relayDiagnosticsFilePath: relayDiagnosticsFile,
+    onRuntimeShutdown: async () => {
       shutdownRuntimeIfOwned();
-      process.exit(0);
     },
   });
+  console.log("[adapter] session closed — exiting");
+  process.exit(0);
 
   return { readyFile };
 }
@@ -146,6 +156,7 @@ interface ReadyFileSuccess {
   frontendUrl: string;
   subagentThreadId: string;
   backendUrl: string;
+  relayDiagnosticsFile: string | null;
   writtenAt: string;
 }
 
@@ -159,6 +170,7 @@ function writeReadyFileSuccess(
   readyFile: string,
   info: { sessionId: string; frontendUrl: string; subagentThreadId: string },
   backendUrl: string,
+  relayDiagnosticsFile: string | null,
 ): void {
   const payload: ReadyFileSuccess = {
     ok: true,
@@ -166,6 +178,7 @@ function writeReadyFileSuccess(
     frontendUrl: info.frontendUrl,
     subagentThreadId: info.subagentThreadId,
     backendUrl,
+    relayDiagnosticsFile,
     writtenAt: new Date().toISOString(),
   };
   mkdirSync(path.dirname(readyFile), { recursive: true });
@@ -193,6 +206,16 @@ function readyFileFromArgs(): string | undefined {
   const args = process.argv.slice(2);
   const idx = args.indexOf("--ready-file");
   return idx >= 0 ? args[idx + 1] : undefined;
+}
+
+function buildRelayDiagnosticsFile(
+  relayDiagnosticsDir: string | undefined,
+  sessionId: string,
+): string | undefined {
+  if (!relayDiagnosticsDir) {
+    return undefined;
+  }
+  return path.join(relayDiagnosticsDir, sessionId, "close-relay-result.json");
 }
 
 function shutdownRuntimeIfOwned(): void {

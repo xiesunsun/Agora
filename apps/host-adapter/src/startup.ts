@@ -3,7 +3,7 @@
  *
  * 1. Spawn a blackboard-worker subagent via host.spawnAgent()
  * 2. Wait for the worker's startup turn to complete
- * 3. The worker uses high-level blackboard-runtime agent commands to generate the
+ * 3. The worker uses high-level Agora CLI commands to generate the
  *    first draft, create the session, and initialize the workspace
  * 4. Adapter writes back the subagentThreadId via the backend control route
  * 5. Return SessionInfo for the event loop
@@ -13,47 +13,40 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { tmpdir } from "node:os";
 import type { BackendClient } from "./backendClient.js";
 import type { AgentTurnResult, HostControls, SessionInfo } from "./types.js";
-
-const REQUIRED_HANDOFF_SECTIONS = [
-  "## Role",
-  "## Task Goal",
-  "## Why Blackboard",
-  "## Context",
-  "## Initial Content",
-  "## Success Criteria",
-  "## Startup Contract",
-  "## Return Contract",
-];
+import { resolveWorkerSessionWorkspace } from "./workerWorkspace.js";
 
 function buildWorkerStartupPrompt(
   backendUrl: string,
   frontendUrl: string,
   startupArtifactsDir: string,
-  handoffPrompt?: string,
+  agoraCliInvocation: string,
+  handoffFilePath?: string,
 ): string {
   const createSessionResultFile = path.join(startupArtifactsDir, "create-session-result.json");
   const getSnapshotResultFile = path.join(startupArtifactsDir, "get-snapshot-result.json");
-  if (handoffPrompt) {
-    assertCompleteHandoff(handoffPrompt);
-    return `${handoffPrompt.trim()}
+  if (handoffFilePath) {
+    return `\
+You are the dedicated blackboard-worker for this session.
 
 ## Runtime Context
 - backendUrl: ${backendUrl}
 - frontendUrl: ${frontendUrl}
+- agoraCliInvocation: ${agoraCliInvocation}
+- handoffFilePath: ${handoffFilePath}
 
 ## Startup Execution Contract
 During this startup turn you must:
-1. Treat the "## Initial Content" section as a drafting brief unless it already contains exact user-facing prose that must be preserved.
-2. You own first-draft creation for this blackboard session. Before creating the session, produce a discussion-ready "sessionDocument.md" from the theme, goal, and context in the handoff when needed.
-3. The visible document must contain only user-facing article content. Never copy control sections such as "Role", "Why Blackboard", "Success Criteria", "Startup Contract", "Return Contract", runtime metadata, or protocol instructions into "sessionDocument.md".
-4. If the handoff includes both task metadata and drafting guidance, use the metadata to guide your writing, but only the actual article draft belongs in "sessionDocument.md".
-5. Use the high-level CLI command:
-   blackboard-runtime create-session --backend-url ${backendUrl} --title "<document title>" --initial-content-file sessionDocument.md --json-out ${createSessionResultFile}
-6. Use the high-level CLI command:
-   blackboard-runtime get-snapshot --backend-url ${backendUrl} --session-result-file ${createSessionResultFile} --write-current-content sessionDocument.md --json-out ${getSnapshotResultFile}
+1. Read handoffFilePath before doing any drafting work.
+2. Write the full handoff contents verbatim into mainAgentInfo.md.
+3. Treat the handoff file's "## Initial Content" section as a drafting brief unless it already contains exact user-facing prose that must be preserved.
+4. Write a discussion-ready sessionDocument.md from the handoff file contents. The visible document must contain only user-facing article content.
+5. Use agoraCliInvocation exactly as the CLI prefix for all Agora commands in this turn.
+6. Create the session with:
+   ${agoraCliInvocation} create-session --backend-url ${backendUrl} --title "<document title>" --initial-content-file sessionDocument.md --json-out ${createSessionResultFile}
+7. Read back the initial snapshot with:
+   ${agoraCliInvocation} get-snapshot --backend-url ${backendUrl} --session-result-file ${createSessionResultFile} --write-current-content sessionDocument.md --json-out ${getSnapshotResultFile}
 
 Startup is only complete after you return exactly:
 sessionId: <sessionId>
@@ -61,13 +54,15 @@ frontendUrl: ${frontendUrl}?sessionId=<sessionId>
 sessionStatus: active`;
   }
 
-  return `\
+ return `\
 你是一个 blackboard-worker subagent。
 
 你的任务是：
 1. 先写出一版可讨论的 sessionDocument.md
-2. 使用 blackboard-runtime create-session 创建一个新的 blackboard session，并把结构化结果写到 ${createSessionResultFile}
-3. 使用 blackboard-runtime get-snapshot 获取初始快照并写入 sessionDocument.md，并把结构化结果写到 ${getSnapshotResultFile}
+2. 使用以下精确 CLI 前缀执行 Agora 命令，不要自行在 PATH 里查找 agora 或 blackboard-runtime：
+   ${agoraCliInvocation}
+3. 使用 ${agoraCliInvocation} create-session 创建一个新的 blackboard session，并把结构化结果写到 ${createSessionResultFile}
+4. 使用 ${agoraCliInvocation} get-snapshot 获取初始快照并写入 sessionDocument.md，并把结构化结果写到 ${getSnapshotResultFile}
 
 创建 session 时使用以下参数：
 - title: "Blackboard Session"
@@ -83,16 +78,18 @@ sessionStatus: active
 export async function bootstrapSession(
   client: BackendClient,
   host: HostControls,
-  handoffPrompt?: string,
+  handoffFilePath?: string,
 ): Promise<SessionInfo> {
   const health = await client.getHealth();
   const startupArtifactsDir = getStartupArtifactsDir();
+  const agoraCliInvocation = process.env.AGORA_CLI_INVOCATION ?? "agora";
   mkdirSync(startupArtifactsDir, { recursive: true });
   const prompt = buildWorkerStartupPrompt(
     health.backendUrl,
     health.frontendUrl,
     startupArtifactsDir,
-    handoffPrompt,
+    agoraCliInvocation,
+    handoffFilePath,
   );
 
   console.log("[startup] spawning blackboard-worker subagent...");
@@ -101,15 +98,15 @@ export async function bootstrapSession(
 
   // Wait for the startup turn (worker calls create_session during this turn)
   const startupTurn = await host.waitAgent(subagentThreadId);
+  const startupOutputFile = path.join(startupArtifactsDir, "startup-turn-output.txt");
+  writeFileSync(startupOutputFile, startupTurn.outputText);
+
   if (startupTurn.status !== "completed") {
     throw new Error(
-      `worker startup turn did not complete successfully: ${startupTurn.status}`,
+      `worker startup turn did not complete successfully: ${startupTurn.status}; raw output saved to ${startupOutputFile}`,
     );
   }
   console.log("[startup] worker startup turn complete");
-
-  const startupOutputFile = path.join(startupArtifactsDir, "startup-turn-output.txt");
-  writeFileSync(startupOutputFile, startupTurn.outputText);
 
   const startupInfo = parseStartupTurn(startupTurn, startupArtifactsDir, startupOutputFile);
   await client.setThread(startupInfo.sessionId, subagentThreadId);
@@ -172,8 +169,8 @@ function parseStartupTurn(
 }
 
 function getStartupArtifactsDir(): string {
-  const workerWorkspace = process.env.BLACKBOARD_WORKER_WORKSPACE ?? path.join(tmpdir(), "blackboard-worker");
-  return path.join(workerWorkspace, "sessions", "startup-temp");
+  const workerWorkspace = resolveWorkerSessionWorkspace();
+  return path.join(workerWorkspace, "sessions", `startup-${Date.now()}`);
 }
 
 function readCreateSessionResult(
@@ -196,13 +193,4 @@ function readCreateSessionResult(
     sessionId: parsed.sessionId,
     frontendUrl: parsed.frontendUrl,
   };
-}
-
-function assertCompleteHandoff(handoffPrompt: string): void {
-  const missing = REQUIRED_HANDOFF_SECTIONS.filter((section) => !handoffPrompt.includes(section));
-  if (missing.length > 0) {
-    throw new Error(
-      `main-agent handoff is incomplete; missing required section(s): ${missing.join(", ")}`,
-    );
-  }
 }
