@@ -9,7 +9,7 @@ For now, please refer to the Chinese README:
 Quick install:
 
 ```bash
-npm install -g @xiesunsun/agora
+npm install -g @sunxie/agora
 agora init-codex --force
 agora doctor
 ```

@@ -5,7 +5,7 @@ This runbook validates the published-style install flow outside the source repos
 ## 1. Install the CLI globally
 
 ```bash
-npm install -g @xiesunsun/agora
+npm install -g @sunxie/agora
 ```
 
 ## 2. Install the global skill

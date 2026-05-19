@@ -30,12 +30,12 @@ try {
     packDir,
   ]);
 
-  const tarball = path.join(packDir, `xiesunsun-agora-${runtimePackageJson.version}.tgz`);
+  const tarball = path.join(packDir, `sunxie-agora-${runtimePackageJson.version}.tgz`);
   await run("npm", ["install", "-g", tarball], {
     env: { ...process.env, npm_config_prefix: npmPrefix },
   });
 
-  const installedPackageRoot = path.join(npmPrefix, "lib", "node_modules", "@xiesunsun", "agora");
+  const installedPackageRoot = path.join(npmPrefix, "lib", "node_modules", "@sunxie", "agora");
   const installedBinary = path.join(npmPrefix, "bin", "agora");
   const skillSource = path.join(
     installedPackageRoot,

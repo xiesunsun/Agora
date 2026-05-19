@@ -54,7 +54,7 @@ Agora 通过 CLI 和 Skill 交付，适合真实安装和反复测试。项目�
 ### 安装 CLI
 
 ```bash
-npm install -g @xiesunsun/agora
+npm install -g @sunxie/agora
 ```
 
 ### 初始化 Codex 资产
@@ -191,7 +191,7 @@ pnpm run smoke:agora
 ## 开源状态
 
 - **当前版本**：`0.1.0`
-- **npm 包名**：`@xiesunsun/agora`
+- **npm 包名**：`@sunxie/agora`
 - **全局命令**：`agora`
 - **许可证**：`Apache-2.0`
 
