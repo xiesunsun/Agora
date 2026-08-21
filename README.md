@@ -5,7 +5,7 @@
 <h1 align="center">Agora</h1>
 
 <p align="center">
-  中文 · <a href="./README.en.md">English</a>
+  English · <a href="./README.zh-CN.md">中文</a>
 </p>
 
 <p align="center">
@@ -16,63 +16,143 @@
   <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue" />
 </p>
 
-> Agora 是一个原生面向 Agent 与人类交互的开源协作产品，重新定义了文稿起草、修改、批注与审阅的工作方式，把协作从聊天窗口带回到内容本身。
+<p align="center">
+  <strong>Codex-native human–agent collaboration for drafting, editing, annotating, and reviewing documents.</strong>
+</p>
 
-Agora 不是把长文塞回聊天窗口反复改写的工具。它把起草、编辑、批注、推进、审阅和收尾总结组织成一种更符合人类写作习惯的可交互网页协作方式：用户可以直接在文稿页面里修改正文、留下批注、做出判断，不需要把大量上下文重新整理后再发回对话框；Agent 则在后台围绕当前内容持续工作，并把候选改动通过审阅流程交还给用户确认。
+Agora is an open-source collaboration layer built on the **open-source Codex agent harness and Codex App Server**.
 
-它适合用于打磨 Spec、PRD、技术方案、研究笔记、说明文档和其他需要“多轮修改 + 人机共同判断”的内容。
+Instead of replacing Codex with a limited embedded chatbot, Agora keeps Codex as the agent runtime—including its tools, skills, execution environment, and thread lifecycle—while providing a document-native interface where people can edit, comment, review, approve, and merge agent-generated changes.
 
-## 一种更适合人类与 Agent 的协作方式
+> Bring the Codex agent loop into the document workflow, rather than bringing the document back into a chat box.
 
-### 1. 不再把协作塞回聊天框
+**Codex App Server · Worker Threads · Host Adapter · Human-in-the-loop Review · CLI + Skill · Apache-2.0**
 
-很多聊天产品里的画布或 artifacts 功能，本质上仍然要求用户把新的上下文重新组织后发回对话框。Agora 把协作放回文稿本身：用户可以直接在页面里编辑、批注和审阅，不需要反复搬运上下文。
+![Agora document collaboration editor](./.github/assets/readme/agora-editor.png)
 
-### 2. 复用现有 Agent 能力，而不是重造一个弱 Agent
+## Built on the Codex Open Agent Harness
 
-Agora 当前优先适配 Codex。你已经在 Codex 里配置好的工具、skills、工作流和执行能力，都可以带进这条协作文稿链路，而不是退回到一个能力受限的内置聊天 Agent。
+Agora is not a generic LLM wrapper and does not implement a separate lightweight agent runtime. Its current runtime integration is built natively around Codex and communicates with `codex app-server` through its documented client protocol.
 
-### 3. 协作线程独立，不污染主任务
+**Codex provides the agent loop:**
 
-临时讨论、草稿往返、审阅判断都发生在独立 worker thread 里。协作结束后，再把最终结果和总结回收到 Main Agent，避免把整个迭代过程污染主任务上下文。
+- conversation and worker thread lifecycle
+- multi-turn task continuation
+- tool and skill execution
+- streamed execution events and progress
+- sandbox and approval primitives
+- the user's existing Codex environment and workflows
 
-### 4. 以 CLI + Skill 交付，方便安装、升级和定制
+**Agora provides the collaboration layer:**
 
-Agora 通过 CLI 和 Skill 交付，适合真实安装和反复测试。项目完全开源，用户可以按自己的 Agent 宿主、技能体系和工作流继续扩展。
+- document-native editing and annotations
+- structured human feedback
+- Proceed → Review → Merge workflows
+- version and changeset review
+- a dedicated worker for each collaboration session
+- final artifact handoff to the originating Codex task
 
-## 核心亮点
+This division lets Agora preserve the full Codex runtime while building an interface specifically for iterative document collaboration. It follows the general application pattern described in OpenAI's [“Codex as a platform: build on the open agent harness”](https://developers.openai.com/blog/codex-as-a-platform): the application owns its product-specific interface and workflow, while Codex provides the underlying agent loop. Agora is an independent open-source project and is not an official OpenAI reference implementation.
 
-- **围绕文稿本身协作**：以更符合人类习惯的网页交互方式完成正文编辑、批注、推进和审阅，而不是把协作重新塞回聊天窗口。
-- **Agent 跟随当前文稿工作**：用户改完内容后，Agent 可以围绕最新状态继续推进，而不是依赖人工复述上下文。
-- **Proceed -> Review -> Merge 闭环**：从继续生成到审阅候选改动再到合并入稿，流程完整可控。
-- **独立协作线程**：协作运行在独立 worker 中，结束后再把结果回收给 Main Agent。
-- **Codex 优先适配**：当前已打通 Codex App / CLI 工作流，可以直接接入用户现有的 Agent 能力、工具链和技能体系。
-- **开源可扩展**：源码、CLI、Skill 一起交付，方便二次开发和宿主适配。
+## Why Agora
 
-## 快速开始
+### Collaboration lives on the document
 
-### 安装 CLI
+Users edit text, attach comments, and make review decisions directly beside the content. They do not need to repackage a long document and its latest context into another chat message.
+
+### The agent follows the latest state
+
+The backend owns the current document, annotations, versions, and review state. The Codex worker receives structured events and continues from that shared state after each human edit or decision.
+
+### Iteration stays out of the main task
+
+Draft exchanges and review work run in a dedicated Codex worker thread. When the session closes, Agora returns the final document and summary artifacts to the originating task instead of filling its context with every intermediate step.
+
+### The integration ships as a CLI and Codex Skill
+
+Agora installs its runtime, collaboration Skill, and worker configuration through a public npm package, making the full path reproducible outside this repository.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    M[Codex Main Agent] -->|handoff| CLI[Agora CLI + Skill]
+    U[Human User] <--> UI[Agora Document UI]
+    UI <--> B[Agora Backend]
+    CLI --> B
+    B -->|session events| H[Host Adapter]
+    H <--> C[Codex App Server]
+    C <--> W[Dedicated Codex Worker Thread]
+    W --> T[Codex Tools + Skills]
+    W --> E[Execution Environment]
+    W -->|Agora CLI actions| B
+    B --> R[Review + Changeset]
+    R --> UI
+    CLI -->|final artifacts| M
+```
+
+| Layer | Responsibility |
+|---|---|
+| **Agora UI and Backend** | Document state, annotations, review flow, versions, and human decisions |
+| **Host Adapter** | Session event queue, App Server communication, worker lifecycle, and result relay |
+| **Codex App Server** | Thread and turn lifecycle, streamed events, execution, and runtime controls |
+| **Codex Worker** | Reasoning, tools, skills, local working files, and candidate generation |
+
+The Host Adapter connects the product workflow to Codex while keeping each collaboration worker isolated from the Main Agent until the workflow completes. The implementation starts `codex app-server --listen stdio://` and uses `thread/start`, `thread/resume`, `turn/start`, and streamed completion events.
+
+## Key Features
+
+- **Codex-native runtime** — Uses Codex App Server, tools, skills, execution capabilities, and multi-turn worker sessions instead of embedding a weaker replacement agent.
+- **Document-native collaboration** — Humans edit, annotate, and review directly on the document.
+- **Dedicated worker threads** — Each collaboration session runs through an independent Codex worker without polluting the Main Agent's iteration history.
+- **Proceed → Review → Merge** — Agent proposals remain visible and controllable before they become part of the document.
+- **Host-controlled execution** — Agora's Host Adapter serializes session events and bridges the product lifecycle with Codex threads and turns.
+- **Version-aware review** — Users can inspect flow reviews, PR-style changes, and document history.
+- **Open and extensible** — Runtime, UI, CLI, Skill, protocols, tests, and integration code are available under Apache-2.0.
+
+## Why Codex App Server?
+
+Agora treats the agent as part of the product, not as a one-shot model call. Document collaboration is stateful: a user may edit a draft, leave comments, ask the agent to continue, inspect proposed changes, reject only part of them, and begin another iteration.
+
+[Codex App Server](https://developers.openai.com/codex/app-server) is designed for deep product integrations that need conversation history, approvals, and streamed agent events. Agora uses it for:
+
+- persistent, multi-turn worker sessions
+- resumable Codex threads during the collaboration lifecycle
+- streamed turn progress and completion events
+- access to Codex tools, skills, and execution environment
+- host-controlled thread and turn lifecycle
+- a clear boundary between application state and agent execution
+
+Agora therefore builds around Codex instead of recreating these capabilities in a separate runtime.
+
+## Quick Start
+
+### 1. Install the CLI
 
 ```bash
 npm install -g @sunxie/agora
 ```
 
-### 初始化 Codex 资产
+### 2. Install and verify the Codex assets
 
 ```bash
 agora init-codex --force
 agora doctor
 ```
 
-### 启动一次协作
+This installs the Agora collaboration Skill and dedicated worker configuration into your Codex home.
 
-在 Codex 中安装并触发 Agora 协作 Skill，或者通过 Agora CLI 拉起完整协作链路。
+### 3. Start a collaboration
 
-完整安装与使用流程可参考：
+Open Codex in the folder where you want to work and invoke:
 
-- [Agora Published E2E Runbook](./docs/05-agent/Agora-Published-E2E-Runbook.md)
+```text
+$blackboard-collaboration
+```
 
-### 本地开发
+The Skill starts the Agora runtime, creates a dedicated Codex worker, and returns the collaboration URL. For the complete workflow, see the [published end-to-end runbook](./docs/05-agent/Agora-Published-E2E-Runbook.md).
+
+### Local development
 
 ```bash
 corepack enable
@@ -82,79 +162,60 @@ pnpm dev
 pnpm dev:backend
 ```
 
-## 部分运行结果
+## Screenshots
 
-### 协作编辑主界面
+### Proceed / Processing
 
-文稿、批注和协作轨道在同一页里展开，用户可以直接围绕当前内容继续编辑和反馈。
+Agora exposes agent progress in the document workflow instead of hiding it in a chat window.
 
-![Agora 协作编辑主界面](./.github/assets/readme/agora-editor.png)
+![Agora Proceed processing view](./.github/assets/readme/agora-proceeding.png)
 
-### Proceed / 处理中界面
+<details>
+<summary><strong>More product views</strong></summary>
 
-用户发起下一轮推进后，页面会明确展示 Agent 正在继续工作，而不是把等待过程藏在聊天窗口里。
+### Flow Review
 
-![Agora Proceed 处理中界面](./.github/assets/readme/agora-proceeding.png)
+Inspect candidate changes individually before accepting them into the current document.
 
-### Flow Review / 流程审阅界面
+![Agora Flow Review](./.github/assets/readme/agora-flow-review.png)
 
-当协作进入常规审阅流程时，用户可以逐项检查候选改动，再决定是否接纳到当前文稿。
+### PR-style Review
 
-![Agora Flow Review 界面](./.github/assets/readme/agora-flow-review.png)
+Compare document changes with a review model familiar to software teams.
 
-### PR Review / 变更审阅界面
+![Agora PR-style Review](./.github/assets/readme/agora-pr-review.png)
 
-对于更接近代码审阅心智的改动比较，Agora 也支持以 PR 风格查看和决策。
+### History Preview
 
-![Agora PR Review 界面](./.github/assets/readme/agora-pr-review.png)
+Review and compare the versions produced across collaboration rounds.
 
-### History Preview / 历史版本查看
+![Agora History Preview](./.github/assets/readme/agora-history-review.png)
 
-协作过程中形成的版本历史可以被回看和比较，方便追溯每一轮判断和演进。
+### Closed Session
 
-![Agora History Review 界面](./.github/assets/readme/agora-history-review.png)
+After closing, the document remains available in a read-only final state.
 
-### Closed / 会话关闭结果
+![Agora Closed Session](./.github/assets/readme/agora-closed.png)
 
-会话关闭后，文稿会进入只读态，用户仍然可以阅读最终结果并查看本轮协作的收尾状态。
+</details>
 
-![Agora Closed 界面](./.github/assets/readme/agora-closed.png)
+## Security Model
 
-## 适用场景
+Agora connects user-controlled document content to an agent runtime that can interact with files, tools, skills, processes, and network resources. Its main trust boundaries are:
 
-- 与 Agent 一起打磨 PRD、Spec、技术设计文档
-- 在页面里直接修改 Agent 草稿并给出结构化反馈
-- 进行临时性的研究讨论、方案收敛和协作文稿
-- 在不污染主任务上下文的前提下，开启独立协作线程
-- 为自己的 Agent 系统接入更适合文稿协作的交互层
+- document and user content → agent context
+- Codex worker → tools, skills, filesystem, and network
+- Agora Host Adapter → Codex App Server
+- worker-generated candidate → human review → accepted document state
+- close artifacts → originating Main Agent
 
-## 技术栈
+Consequential document changes pass through explicit human review before merge. However, **v0.1 currently launches the dedicated worker with `danger-full-access` and a non-interactive approval policy** so it can complete the local CLI workflow. Run this release only in a trusted local environment and workspace; do not use it on untrusted repositories or documents.
 
-- **Frontend**：React、TypeScript、Vite
-- **Backend**：Node.js、TypeScript、HTTP + SSE
-- **Agent Integration**：Codex App / CLI、Host Adapter、Worker Thread
-- **Runtime Delivery**：npm CLI、Codex Skill、嵌入式运行时
-- **Package Manager**：pnpm 10
+Security hardening is active roadmap work, including narrower sandbox defaults, approval boundaries, prompt-injection defenses, safer tool invocation, credential protection, extension validation, and filesystem/network access controls. See the [Codex Host Validation Contract](./docs/05-agent/Codex-Host-Validation-Contract.md) for the repository's explicit claim and evidence model.
 
-## 项目结构
+## Testing, Compatibility & Maintenance
 
-```text
-apps/
-  frontend/                 文稿协作前端
-  backend/                  会话状态与审阅流程
-  host-adapter/             Codex 宿主桥接与 worker 分发
-
-packages/
-  blackboard-runtime/       Agora CLI 实现
-  document-model/           文稿结构模型
-  review-model/             审阅与 changeset 模型
-
-docs/                       产品、架构、协议、runbook
-harness/                    smoke 与验证脚本
-scripts/                    本地安装与开发辅助脚本
-```
-
-## 测试与验证
+Agora includes unit, integration, architecture, smoke, and published end-to-end validation for the Codex integration path.
 
 ```bash
 pnpm test
@@ -165,36 +226,82 @@ pnpm build:all
 pnpm run smoke:agora
 ```
 
-常用文档：
+The validation surface covers:
+
+- Codex worker and turn lifecycle
+- Host Adapter communication and event serialization
+- session initialization, review, close, and shutdown
+- Proceed / Review / Merge transitions
+- CLI and Skill installation
+- document, version, and changeset consistency
+
+Useful maintenance documents:
 
 - [Developer Guide](./docs/Developer-Guide.md)
 - [Developer Iteration Guide](./docs/Developer-Iteration-Guide.md)
-- [Agora Published E2E Runbook](./docs/05-agent/Agora-Published-E2E-Runbook.md)
-- [Product Overview](./docs/01-product/Product-Overview.md)
+- [Published E2E Runbook](./docs/05-agent/Agora-Published-E2E-Runbook.md)
 - [Host Execution Design](./docs/05-agent/Host-Execution-Design.md)
+- [Codex Host Validation Contract](./docs/05-agent/Codex-Host-Validation-Contract.md)
 - [Agent CLI Contract](./docs/03-contracts/Agent-CLI.md)
 
-## 后续发展路线
+## Project Structure
 
-- [ ] 优化 worker Agent 启动时间
-- [ ] 优化 session 关闭时间延迟
-- [ ] 解决 worker Agent 返回 Main Agent 的显示问题
-- [ ] 支持 Claude Code、Pickle 等更多 Agent
-- [ ] 支持富文本与多模态数据协作迭代
-- [ ] 支持自定义协作页面主题
-- [ ] 支持自定义 comment state 图标
-- [ ] 支持 comment state 图标简略显示后台 Agent 意见
-- [ ] 支持更接近 Git 心智的文档版本管理方式
-- [ ] 支持多人协作
-- [ ] 增加协作页面内的 chat-to-worker Agent 功能
+```text
+apps/
+  frontend/                 Document collaboration UI
+  backend/                  Session state and review workflow
+  host-adapter/             Codex App Server bridge and worker dispatch
 
-## 开源状态
+packages/
+  blackboard-runtime/       Published Agora CLI and embedded runtime
+  document-model/           Document structure model
+  review-model/             Review and changeset model
 
-- **当前版本**：`0.1.0`
-- **npm 包名**：`@sunxie/agora`
-- **GitHub 包名**：`@xiesunsun/agora`
-- **全局命令**：`agora`
-- **许可证**：`Apache-2.0`
+docs/                       Product, architecture, contracts, and runbooks
+harness/                    Architecture checks and smoke validation
+scripts/                    Local installation and development helpers
+```
+
+## Roadmap
+
+### Codex Integration and Security
+
+- [ ] Reduce Codex worker startup latency
+- [ ] Improve worker → Main Agent result visibility
+- [ ] Expand App Server lifecycle compatibility tests
+- [ ] Add restart-safe session and worker recovery
+- [ ] Replace the current full-access worker default with narrower sandbox and approval boundaries
+- [ ] Add Codex Security validation workflows
+
+### Collaboration
+
+- [ ] Rich-text and multimodal collaboration
+- [ ] Git-like document version management
+- [ ] Multi-user collaboration
+- [ ] In-page chat with worker agents
+- [ ] Custom collaboration themes and comment states
+
+### Additional Agent Hosts
+
+Codex is the current first-class runtime. Other harnesses may be added later through separate adapters.
+
+- [ ] Pickle and other agent harnesses
+
+## Contributing
+
+Issues and pull requests are welcome. Start with the [Developer Guide](./docs/Developer-Guide.md) and [documentation index](./docs/README.md), then run the full validation commands above before submitting a change.
+
+## Contributors
+
+Thank you to everyone who has helped build Agora. See the [full contributor graph](https://github.com/xiesunsun/Agora/graphs/contributors).
+
+## Release Status
+
+- **Current version:** `0.1.0`
+- **npm package:** `@sunxie/agora`
+- **GitHub package:** `@xiesunsun/agora`
+- **Global command:** `agora`
+- **License:** `Apache-2.0`
 
 ## License
 
